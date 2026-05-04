@@ -339,7 +339,7 @@ function newRecord(){
     tarih:today(), kozanOrderNo:'', musteriPoNo:'', modelAdi:'', tip:' ',
     renk:'', kesimAdeti:'', dikimSevkAdeti:'', dikimIadeAdeti:'', saglamUrunAdeti:'',
     ikiKaliteAdeti:'', eksikAdet:'',
-    errors:{baski:'',kumas:'',leke:'',renkFarki:'',aksesuar:''},
+    errors:{baski:'',kumas:'',leke:'',renkFarki:'',aksesuar:'',digerHatalar:''},
     boxes:[
       {koli1:'',koli2:'',koliAdet:'1',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',brutKg:''},
       {koli1:'',koli2:'',koliAdet:'1',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',brutKg:''},
@@ -549,11 +549,14 @@ function renderForm(){
       </div>
       <div class="grid-2">
         <div class="field"><label>Model Adı</label><input id="f-modeladi" value="${r.modelAdi||''}" placeholder=" " oninput="updateField('modelAdi',this.value)"></div>
-        <div class="field"><label>Ürün Tipi</label><select oninput="updateField('tip',this.value)">${prodOpts}</select></div>
+        <div class="field"><label>Renk</label><input value="${r.renk||''}" placeholder=" " oninput="updateField('renk',this.value)"></div>
       </div>
       <div class="grid-2">
-        <div class="field"><label>Renk</label><input value="${r.renk||''}" placeholder=" " oninput="updateField('renk',this.value)"></div>
         <div class="field"><label>Kesim Adeti</label><input type="number" value="${r.kesimAdeti||''}" placeholder=" " oninput="updateField('kesimAdeti',this.value)"></div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Ürün Tipi</label><select oninput="updateField('tip',this.value)">${prodOpts}</select></div>
+        <div class="field"><label>Diğer Hatalar</label><input value="${r.errors.digerHatalar||''}" placeholder=" " oninput="updateError('digerHatalar',this.value)"></div>
       </div>
       <div class="section-divider"><span class="sd-label">Adet Bilgileri</span></div>
       <div class="grid-3">
@@ -898,6 +901,11 @@ function buildPrint(){
         <td><span class="pm-label">Kesim Adeti</span><span class="pm-val">${dash(r.kesimAdeti)}</span></td>
         <td><span class="pm-label">Eksik Adet</span><span class="pm-val">${(()=>{ const v=calcEksikAdet(r); return (v!==''&&v!==undefined)?v:'—'; })()}</span></td>
         <td><span class="pm-label">Aksesuar Hatası</span><span class="pm-val">${dash(r.errors.aksesuar)}</span></td>
+      </tr>
+      <tr>
+        <td><span class="pm-label">Ürün Tipi</span><span class="pm-val">${dash(r.tip)}</span></td>
+        <td></td>
+        <td><span class="pm-label">Diğer Hatalar</span><span class="pm-val">${dash(r.errors.digerHatalar)}</span></td>
       </tr>
     </table>
 
