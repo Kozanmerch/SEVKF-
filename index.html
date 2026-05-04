@@ -201,7 +201,11 @@ const TR = {
 };
 const t = s => uiLang==='tr' && TR[s] ? TR[s] : s;
 
-const DEFAULT_PRODUCTS = ['T-SHIRT','SWEATSHIRT','HOODIE','PANTOLON','ŞORT','ELBISE','TAKIM','HIRKA','CEKET','MONT'];
+const DEFAULT_PRODUCTS = [
+  {name:'T-SHIRT',gramaj:180},{name:'SWEATSHIRT',gramaj:320},{name:'HOODIE',gramaj:380},
+  {name:'PANTOLON',gramaj:400},{name:'ŞORT',gramaj:220},{name:'ELBISE',gramaj:250},
+  {name:'TAKIM',gramaj:500},{name:'HIRKA',gramaj:350},{name:'CEKET',gramaj:600},{name:'MONT',gramaj:800}
+];
 const DEFAULT_NAMES = { fason:['Gürbüz Taşdemir'], utu:['Rıdvan Gün'] };
 
 const state = { screen:'dashboard', current:null, records:[] };
@@ -218,8 +222,25 @@ function persist(){ try{ localStorage.setItem(SK_RECORDS, JSON.stringify(state.r
 function loadRecords(){ try{ const r=localStorage.getItem(SK_RECORDS); if(r) state.records=JSON.parse(r); }catch(_){} }
 function loadNames(){ try{ return JSON.parse(localStorage.getItem(SK_NAMES)||'null')||DEFAULT_NAMES; }catch(_){ return {...DEFAULT_NAMES}; } }
 function saveNames(n){ try{ localStorage.setItem(SK_NAMES, JSON.stringify(n)); }catch(_){} }
-function loadProducts(){ try{ const p=localStorage.getItem(SK_PRODUCTS); return p?JSON.parse(p):[...DEFAULT_PRODUCTS]; }catch(_){ return [...DEFAULT_PRODUCTS]; } }
+function loadProducts(){
+  try{
+    const raw=localStorage.getItem(SK_PRODUCTS);
+    if(!raw) return DEFAULT_PRODUCTS.map(p=>({...p}));
+    const parsed=JSON.parse(raw);
+    // Migrate old string arrays to object format
+    if(Array.isArray(parsed) && parsed.length && typeof parsed[0]==='string'){
+      return parsed.map(name=>({name,gramaj:''}));
+    }
+    return parsed;
+  }catch(_){ return DEFAULT_PRODUCTS.map(p=>({...p})); }
+}
 function saveProducts(p){ try{ localStorage.setItem(SK_PRODUCTS, JSON.stringify(p)); }catch(_){} }
+
+// Helper: get gramaj for a given product name
+function getProductGramaj(tipName){
+  const p=loadProducts().find(p=>p.name===tipName);
+  return p ? (parseFloat(p.gramaj)||0) : 0;
+}
 loadRecords();
 
 const qs = s => document.querySelector(s);
@@ -251,6 +272,15 @@ function calcNetKg(box){
   const count=(k1>0&&k2>=k1)?(k2-k1+1):1;
   const net = brut - count;
   return net>0 ? (Number.isInteger(net)?String(net):net.toFixed(1).replace(/\.0$/,'')) : '';
+}
+
+// Auto Brüt KG from gramaj: rowTotal * gramaj(g) / 1000
+function calcBrutKgAuto(box, gramaj){
+  if(!gramaj) return '';
+  const tot = calcRowTotal(box);
+  if(!tot) return '';
+  const val = tot * gramaj / 1000;
+  return Number.isInteger(val) ? String(val) : val.toFixed(2).replace(/\.?0+$/,'');
 }
 
 function calcEksikAdet(r){
@@ -445,18 +475,64 @@ function showProductManager(){
   overlay.innerHTML=`<div class="modal">
     <div class="modal-header"><h3>🏷️ Ürün Tipleri</h3><button class="btn btn-ghost btn-sm" onclick="closeModal()">✕</button></div>
     <div class="modal-body">
-      <div style="display:flex;gap:8px;margin-bottom:12px">
-        <input id="np-inp" class="mini-input" style="flex:1" placeholder="Yeni ürün tipi..." onkeydown="if(event.key==='Enter')addProduct()">
+      <div style="display:flex;gap:6px;margin-bottom:12px;align-items:center">
+        <input id="np-inp" class="mini-input" style="flex:2" placeholder="Ürün adı..." onkeydown="if(event.key==='Enter')addProduct()">
+        <input id="np-gramaj" class="mini-input" style="flex:1;max-width:80px" placeholder="g (gram)" type="number" min="0" onkeydown="if(event.key==='Enter')addProduct()">
         <button class="btn btn-primary btn-sm" onclick="addProduct()">Ekle</button>
       </div>
-      <div id="product-list">${products.map((p,i)=>`<div class="name-item"><span>${p}</span><button class="del-btn" onclick="removeProduct(${i})">✕</button></div>`).join('')}</div>
+      <div style="display:grid;grid-template-columns:1fr auto auto;gap:4px 8px;align-items:center;margin-bottom:6px;padding:0 6px">
+        <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em">Ürün Adı</span>
+        <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;text-align:center">Gramaj</span>
+        <span></span>
+      </div>
+      <div id="product-list">${renderProductList(products)}</div>
     </div>
-    <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Kapat</button></div>
+    <div class="modal-footer">
+      <span style="font-size:11px;color:var(--muted);flex:1">Gramaj girilince Brüt KG otomatik hesaplanır.</span>
+      <button class="btn btn-ghost" onclick="closeModal()">Kapat</button>
+    </div>
   </div>`;
   document.body.appendChild(overlay);
 }
-function addProduct(){ const inp=qs('#np-inp'),val=(inp.value||'').trim().toUpperCase(); if(!val) return; const p=loadProducts(); if(p.includes(val)){toast('⚠️ Zaten var');return;} p.push(val); saveProducts(p); inp.value=''; const l=qs('#product-list'); if(l) l.innerHTML=p.map((x,i)=>`<div class="name-item"><span>${x}</span><button class="del-btn" onclick="removeProduct(${i})">✕</button></div>`).join(''); toast('✓ Eklendi'); }
-function removeProduct(idx){ const p=loadProducts(); p.splice(idx,1); saveProducts(p); const l=qs('#product-list'); if(l) l.innerHTML=p.map((x,i)=>`<div class="name-item"><span>${x}</span><button class="del-btn" onclick="removeProduct(${i})">✕</button></div>`).join(''); toast('✓ Silindi'); }
+
+function renderProductList(products){
+  return products.map((p,i)=>`
+    <div class="name-item" style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center">
+      <span style="font-size:13px">${p.name}</span>
+      <div style="display:flex;align-items:center;gap:4px">
+        <input type="number" min="0" value="${p.gramaj||''}" placeholder="g"
+          onchange="updateProductGramaj(${i},this.value)"
+          style="width:70px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r-sm);padding:4px 8px;font-family:'DM Mono',monospace;font-size:12px;color:var(--text);outline:none;text-align:right">
+        <span style="font-size:11px;color:var(--muted)">g</span>
+      </div>
+      <button class="del-btn" onclick="removeProduct(${i})">✕</button>
+    </div>`).join('');
+}
+
+function addProduct(){
+  const inp=qs('#np-inp'), gramajInp=qs('#np-gramaj');
+  const val=(inp.value||'').trim().toUpperCase();
+  const gramaj=parseFloat(gramajInp.value)||'';
+  if(!val) return;
+  const p=loadProducts();
+  if(p.find(x=>x.name===val)){toast('⚠️ Zaten var');return;}
+  p.push({name:val,gramaj});
+  saveProducts(p);
+  inp.value=''; gramajInp.value='';
+  const l=qs('#product-list'); if(l) l.innerHTML=renderProductList(p);
+  toast('✓ Eklendi');
+}
+
+function removeProduct(idx){ const p=loadProducts(); p.splice(idx,1); saveProducts(p); const l=qs('#product-list'); if(l) l.innerHTML=renderProductList(p); toast('✓ Silindi'); }
+
+function updateProductGramaj(idx, val){
+  const p=loadProducts();
+  p[idx].gramaj=parseFloat(val)||'';
+  saveProducts(p);
+  // If the current record uses this product, re-render form to update auto brutKg
+  if(state.current && state.current.tip===p[idx].name && state.screen==='form') renderForm();
+  toast('✓ Gramaj güncellendi');
+}
 
 // ══ NAMES MANAGER ══════════════════════════════════════════════════════
 function showNamesManager(){
@@ -491,13 +567,20 @@ function renderForm(){
   autoCalcSummary(r);
   const products=loadProducts();
   const names=loadNames();
-  const prodOpts=products.map(p=>`<option value="${p}" ${r.tip===p?'selected':''}>${p}</option>`).join('');
+  const prodOpts=products.map(p=>`<option value="${p.name}" ${r.tip===p.name?'selected':''}>${p.name}</option>`).join('');
   const fasonOpts=`<option value="">— Seç —</option>`+(names.fason||[]).map(n=>`<option value="${n}" ${r.fasonSorumlu===n?'selected':''}>${n}</option>`).join('');
   const utuOpts=`<option value="">— Seç —</option>`+(names.utu||[]).map(n=>`<option value="${n}" ${r.utuSorumlu===n?'selected':''}>${n}</option>`).join('');
 
+  const gramaj = getProductGramaj(r.tip);
+
   const boxRows=r.boxes.map((b,i)=>{
     const tot=calcRowTotal(b);
-    const netKg=calcNetKg(b);
+    // Auto-calc brutKg if gramaj is set and no manual override
+    const autoBrut = gramaj ? calcBrutKgAuto(b, gramaj) : '';
+    const brutDisplay = b.brutKgManual ? b.brutKg : (autoBrut || b.brutKg || '');
+    const brutKgVal = b.brutKgManual ? b.brutKg : (autoBrut !== '' ? autoBrut : b.brutKg);
+    const netKg=calcNetKg({...b, brutKg: brutKgVal});
+    const brutIsAuto = gramaj && !b.brutKgManual && autoBrut!=='';
     return `<tr>
       <td class="row-num">${i+1}</td>
       <td style="padding:2px;white-space:nowrap">
@@ -511,7 +594,7 @@ function renderForm(){
       <td><input class="auto-val" value="${b.koli2||''}" readonly tabindex="-1" style="min-width:28px"></td>
       ${SK_KEYS.map(k=>`<td><input value="${b[k]||''}" oninput="updateBox(${i},'${k}',this.value)" style="min-width:32px"></td>`).join('')}
       <td><input class="auto-val" id="bt-tot-${i}" value="${tot||''}" readonly tabindex="-1" style="min-width:38px"></td>
-      <td><input value="${b.brutKg||''}" oninput="updateBox(${i},'brutKg',this.value)" style="min-width:42px" placeholder="kg"></td>
+      <td><input ${brutIsAuto?'class="auto-val"':''} id="bt-brut-${i}" value="${brutIsAuto?brutDisplay:(b.brutKg||'')}" oninput="updateBrutKg(${i},this.value)" style="min-width:42px" placeholder="kg" title="${brutIsAuto?`Otomatik: ${gramaj}g × adet`:'Manuel'}"></td>
       <td><input class="auto-val" id="bt-net-${i}" value="${netKg}" readonly tabindex="-1" style="min-width:42px"></td>
       <td style="padding:2px" class="no-print"><button class="del-btn" onclick="removeBox(${i})">✕</button></td>
     </tr>`;
@@ -549,7 +632,10 @@ function renderForm(){
       </div>
       <div class="grid-2">
         <div class="field"><label>Model Adı</label><input id="f-modeladi" value="${r.modelAdi||''}" placeholder=" " oninput="updateField('modelAdi',this.value)"></div>
-        <div class="field"><label>Ürün Tipi</label><select oninput="updateField('tip',this.value)">${prodOpts}</select></div>
+        <div class="field"><label>Ürün Tipi</label>
+          <select oninput="updateField('tip',this.value);renderForm()">${prodOpts}</select>
+          ${gramaj?`<div style="margin-top:4px;font-size:11px;color:var(--accent2);font-family:'DM Mono',monospace">⚖️ ${gramaj}g/adet → Brüt KG otomatik</div>`:'<div style="margin-top:4px;font-size:11px;color:var(--muted)">⚖️ Gramaj yok — <button onclick="showProductManager()" style="background:none;border:none;color:var(--accent2);font-size:11px;cursor:pointer;padding:0;font-family:inherit">Ürün Tiplerinden ekle</button></div>'}
+        </div>
       </div>
       <div class="grid-2">
         <div class="field"><label>Renk</label><input value="${r.renk||''}" placeholder=" " oninput="updateField('renk',this.value)"></div>
@@ -710,12 +796,42 @@ function updateBoxKoli(idx,key,val){
 function updateBox(idx,key,val){
   updateRecord(r=>{ r.boxes[idx][key]=val; autoCalcSummary(r); });
   const r=state.current;
+  const b=r.boxes[idx];
+  const gramaj=getProductGramaj(r.tip);
   // Row total
-  const totEl=qs(`#bt-tot-${idx}`); if(totEl) totEl.value=calcRowTotal(r.boxes[idx])||'';
-  // Net KG
-  const netEl=qs(`#bt-net-${idx}`); if(netEl) netEl.value=calcNetKg(r.boxes[idx]);
+  const totEl=qs(`#bt-tot-${idx}`); if(totEl) totEl.value=calcRowTotal(b)||'';
+  // Auto brutKg
+  if(gramaj && !b.brutKgManual){
+    const autoBrut=calcBrutKgAuto(b,gramaj);
+    const brutEl=qs(`#bt-brut-${idx}`); if(brutEl) brutEl.value=autoBrut;
+    const netEl=qs(`#bt-net-${idx}`); if(netEl) netEl.value=calcNetKg({...b,brutKg:autoBrut});
+  } else {
+    const netEl=qs(`#bt-net-${idx}`); if(netEl) netEl.value=calcNetKg(b);
+  }
   refreshTotals();
   refreshSummaryDisplay();
+}
+
+function updateBrutKg(idx, val){
+  updateRecord(r=>{
+    if(val===''||val===null){
+      // Clear manual override — revert to auto
+      r.boxes[idx].brutKgManual=false;
+      r.boxes[idx].brutKg='';
+    } else {
+      r.boxes[idx].brutKgManual=true;
+      r.boxes[idx].brutKg=val;
+    }
+    autoCalcSummary(r);
+  });
+  const r=state.current;
+  // effective brutKg for net calc
+  const b=r.boxes[idx];
+  const gramaj=getProductGramaj(r.tip);
+  const autoBrut=gramaj?calcBrutKgAuto(b,gramaj):'';
+  const effectiveBrut=b.brutKgManual?b.brutKg:(autoBrut||b.brutKg||'');
+  const netEl=qs(`#bt-net-${idx}`); if(netEl) netEl.value=calcNetKg({...b,brutKg:effectiveBrut});
+  refreshTotals();
 }
 
 function updateSummary(rowKey,sizeKey,val){
@@ -733,12 +849,20 @@ function updateSummary(rowKey,sizeKey,val){
 
 function refreshTotals(){
   const r=state.current; if(!r) return;
+  const gramaj=getProductGramaj(r.tip);
   SK_KEYS.forEach(k=>{ const el=qs(`#ft-${k}`); if(el) el.value=calcColTotal(r.boxes,k)||''; });
   const g=qs('#ft-grand'); if(g) g.value=r.boxes.reduce((s,b)=>s+calcRowTotal(b),0)||'';
-  // brut/net kg totals
-  const totalBrut=r.boxes.reduce((s,b)=>s+(parseFloat(b.brutKg)||0),0);
-  const totalNet=r.boxes.reduce((s,b)=>s+(parseFloat(calcNetKg(b))||0),0);
+  // brut/net kg totals — use effective brutKg (auto or manual)
   const fmtKg=v=>v?(Number.isInteger(v)?String(v):v.toFixed(1).replace(/\.0$/,'')):''
+  const totalBrut=r.boxes.reduce((s,b)=>{
+    const autoBrut=gramaj&&!b.brutKgManual?parseFloat(calcBrutKgAuto(b,gramaj)||0):0;
+    return s+(b.brutKgManual?(parseFloat(b.brutKg)||0):autoBrut||(parseFloat(b.brutKg)||0));
+  },0);
+  const totalNet=r.boxes.reduce((s,b)=>{
+    const autoBrut=gramaj&&!b.brutKgManual?calcBrutKgAuto(b,gramaj):'';
+    const eff=b.brutKgManual?b.brutKg:(autoBrut||b.brutKg||'');
+    return s+(parseFloat(calcNetKg({...b,brutKg:eff}))||0);
+  },0);
   const bEl=qs('#ft-brut-kg'); if(bEl) bEl.value=fmtKg(totalBrut);
   const nEl=qs('#ft-net-kg');  if(nEl) nEl.value=fmtKg(totalNet);
 }
@@ -817,26 +941,32 @@ function buildPrint(){
   const dash=v=>v||'—';
 
   // Only include rows that have at least one size filled OR brutKg filled
+  const gramajPrint = getProductGramaj(r.tip);
+  const getEffBrut = b => {
+    const auto = gramajPrint && !b.brutKgManual ? calcBrutKgAuto(b, gramajPrint) : '';
+    return b.brutKgManual ? b.brutKg : (auto || b.brutKg || '');
+  };
   const filledBoxes = r.boxes.filter(b =>
-    SK_KEYS.some(k => parseInt(b[k]) > 0) || parseFloat(b.brutKg) > 0
+    SK_KEYS.some(k => parseInt(b[k]) > 0) || parseFloat(getEffBrut(b)) > 0
   );
 
   const boxTrs=filledBoxes.map(b=>{
     const tot=calcRowTotal(b);
-    const net=calcNetKg(b);
+    const effBrut=getEffBrut(b);
+    const net=calcNetKg({...b,brutKg:effBrut});
     return `<tr>
       <td>${b.koli1||''}</td><td>${b.koli2||''}</td>
       <td class="lt">${r.modelAdi||''}</td>
       ${SK_KEYS.map(k=>`<td>${b[k]||''}</td>`).join('')}
       <td style="font-weight:700">${tot||''}</td>
-      <td>${b.brutKg||''}</td>
+      <td>${effBrut||''}</td>
       <td>${net||''}</td>
     </tr>`;
   }).join('');
 
   // Totals calculated from filledBoxes
-  const totalBrutKg = filledBoxes.reduce((s,b)=>s+(parseFloat(b.brutKg)||0),0);
-  const totalNetKg  = filledBoxes.reduce((s,b)=>s+(parseFloat(calcNetKg(b))||0),0);
+  const totalBrutKg = filledBoxes.reduce((s,b)=>s+(parseFloat(getEffBrut(b))||0),0);
+  const totalNetKg  = filledBoxes.reduce((s,b)=>{const eff=getEffBrut(b);return s+(parseFloat(calcNetKg({...b,brutKg:eff}))||0);},0);
   const fmtKg = v => v ? (Number.isInteger(v)?String(v):v.toFixed(1).replace(/\.0$/,'')) : '';
 
   const sumTrs=[
