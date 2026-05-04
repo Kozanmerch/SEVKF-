@@ -126,7 +126,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
 /* Print meta table */
 .pr-meta{width:100%;border-collapse:collapse;margin-bottom:3px;}
-.pr-meta td{border:1px solid #999;padding:0px 4px;vertical-align:top;}
+.pr-meta td{border:1px solid #999;padding:0px 4px;vertical-align:top;word-wrap:break-word;overflow-wrap:break-word;white-space:normal;}
 .pr-meta .pm-label{font-size:7px;color:#777;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:1px;}
 .pr-meta .pm-val{font-size:9.5px;font-weight:700;}
 
@@ -549,14 +549,11 @@ function renderForm(){
       </div>
       <div class="grid-2">
         <div class="field"><label>Model Adı</label><input id="f-modeladi" value="${r.modelAdi||''}" placeholder=" " oninput="updateField('modelAdi',this.value)"></div>
-        <div class="field"><label>Renk</label><input value="${r.renk||''}" placeholder=" " oninput="updateField('renk',this.value)"></div>
-      </div>
-      <div class="grid-2">
-        <div class="field"><label>Kesim Adeti</label><input type="number" value="${r.kesimAdeti||''}" placeholder=" " oninput="updateField('kesimAdeti',this.value)"></div>
-      </div>
-      <div class="grid-2">
         <div class="field"><label>Ürün Tipi</label><select oninput="updateField('tip',this.value)">${prodOpts}</select></div>
-        <div class="field"><label>Diğer Hatalar</label><input value="${r.errors.digerHatalar||''}" placeholder=" " oninput="updateError('digerHatalar',this.value)"></div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Renk</label><input value="${r.renk||''}" placeholder=" " oninput="updateField('renk',this.value)"></div>
+        <div class="field"><label>Kesim Adeti</label><input type="number" value="${r.kesimAdeti||''}" placeholder=" " oninput="updateField('kesimAdeti',this.value)"></div>
       </div>
       <div class="section-divider"><span class="sd-label">Adet Bilgileri</span></div>
       <div class="grid-3">
@@ -574,9 +571,10 @@ function renderForm(){
         <div class="field"><label>Kumaş Hatası</label><input value="${r.errors.kumas||''}" placeholder=" " oninput="updateError('kumas',this.value)"></div>
         <div class="field"><label>Leke</label><input value="${r.errors.leke||''}" placeholder="—" oninput="updateError('leke',this.value)"></div>
       </div>
-      <div class="grid-2">
+      <div class="grid-3">
         <div class="field"><label>Renk Farkı</label><input value="${r.errors.renkFarki||''}" placeholder=" " oninput="updateError('renkFarki',this.value)"></div>
         <div class="field"><label>Aksesuar Hatası</label><input value="${r.errors.aksesuar||''}" placeholder=" " oninput="updateError('aksesuar',this.value)"></div>
+        <div class="field"><label>Diğer Hatalar</label><input value="${r.errors.digerHatalar||''}" placeholder=" " oninput="updateError('digerHatalar',this.value)"></div>
       </div>
     </div>
 
@@ -903,7 +901,7 @@ function buildPrint(){
         <td><span class="pm-label">Aksesuar Hatası</span><span class="pm-val">${dash(r.errors.aksesuar)}</span></td>
       </tr>
       <tr>
-        <td><span class="pm-label">Ürün Tipi</span><span class="pm-val">${dash(r.tip)}</span></td>
+        <td><span class="pm-label">Ürün Türü</span><span class="pm-val">${dash(r.tip)}</span></td>
         <td></td>
         <td><span class="pm-label">Diğer Hatalar</span><span class="pm-val">${dash(r.errors.digerHatalar)}</span></td>
       </tr>
