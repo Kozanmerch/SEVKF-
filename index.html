@@ -107,8 +107,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   #print-area{display:block!important;}
   .no-print{display:none!important;}
   @page{margin:7mm;size:A4 portrait;}
-  .pr{padding-bottom:90px;}
-  .pr-footer-wrap{position:fixed;bottom:0;left:0;right:0;background:#fff;padding:0 7mm 4mm;}
+
   img{-webkit-print-color-adjust:exact;print-color-adjust:exact;max-width:100%;}
 }
 #print-area{display:none;}
@@ -302,40 +301,28 @@ function getEffectiveBrutKg(box, gramaj){
 }
 
 function calcEksikAdet(r){
-  const totalSip = parseInt(r.summary.siparis.toplam) || 0;
-  const totalYuk = parseInt(r.summary.yukleme.toplam) || 0;
-
   const hasSip = r.summary.siparis.toplam !== '' && r.summary.siparis.toplam !== undefined;
   const hasYuk = r.summary.yukleme.toplam !== '' && r.summary.yukleme.toplam !== undefined;
 
-  if(!hasSip && !hasYuk){ 
-    r.eksikAdet = ''; 
-    return ''; 
-  }
+  if(!hasSip && !hasYuk){ r.eksikAdet = ''; return ''; }
 
-  const raw = totalYuk - totalSip;
-
-  // 🔥 NEW LOGIC
-  const val = raw > 0 ? 0 : raw * -1;
-
+  const totalSip = parseInt(r.summary.siparis.toplam) || 0;
+  const totalYuk = parseInt(r.summary.yukleme.toplam) || 0;
+  const diff = totalYuk - totalSip;
+  // positive diff → 0 (no shortage), negative diff → flip sign (shortage amount)
+  const val = diff >= 0 ? 0 : diff * -1;
   r.eksikAdet = val;
   return val;
 }
 
 
 function updateEksikAdet(){
-  const r = state.current; 
+  const r = state.current;
   if(!r) return;
-
   autoCalcSummary(r);
-
-  const raw = parseFloat(calcEksikAdet(r)) || 0;
-  const val = raw > 0 ? 0 : raw;
-
   persist();
-
-  const el = qs('#f-eksikAdet'); 
-  if(el) el.value = val;
+  const el = qs('#f-eksikAdet');
+  if(el){ const v=r.eksikAdet; el.value=(v!==''&&v!==undefined)?v:''; }
 }
 
 function autoKoliNumbers(r){
@@ -362,14 +349,14 @@ function autoCalcSummary(r){
   let totalF=0;
   let anyEntered=false;
   SK_KEYS.forEach(k=>{
-    const sip=parseInt(r.summary.siparis[k]);
-    const yuk=parseInt(r.summary.yukleme[k]);
     const sipHasVal = r.summary.siparis[k]!=='' && r.summary.siparis[k]!==undefined;
     const yukHasVal = r.summary.yukleme[k]!=='' && r.summary.yukleme[k]!==undefined;
     if(sipHasVal || yukHasVal){
       anyEntered=true;
-      const diff=(yuk||0)-(sip||0);
-      r.summary.fark[k]=diff; // can be 0
+      const sip=parseInt(r.summary.siparis[k])||0;
+      const yuk=parseInt(r.summary.yukleme[k])||0;
+      const diff=yuk-sip; // Yükleme − Sipariş
+      r.summary.fark[k]=diff;
       totalF+=diff;
     } else {
       r.summary.fark[k]='';
