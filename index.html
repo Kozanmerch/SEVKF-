@@ -651,7 +651,7 @@ function renderForm(){
     {key:'kesim',  label:'Kesim Adeti',  cls:'kesim-row',  editable:true},
     {key:'yukleme',label:'Yükleme Adeti',cls:'yukleme-row',editable:true},
     {key:'fark',   label:'Fark',         cls:'fark-row',   editable:false},
-    {key:'fark_pct',label:'Fark %',      cls:'fark-pct-row',editable:false},
+    {key:'fark_pct',label:'Yükleme %',      cls:'fark-pct-row',editable:false},
   ].map(row=>{
     const rowData = r.summary[row.key] || {};
     const cells=SK_KEYS.map(k=>{
