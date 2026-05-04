@@ -389,15 +389,20 @@ function autoCalcSummary(r){
     const yukHasVal = r.summary.yukleme[k]!=='' && r.summary.yukleme[k]!==undefined;
     if((sipHasVal || yukHasVal) && (sip||0)>0){
       anyPct=true;
-      const pct=((yuk||0)/(sip||1)*100);
-      r.summary.fark_pct[k]=Math.round(pct*10)/10;
+      const raw=((yuk||0)-(sip||0))/(sip||1)*100;
+      r.summary.fark_pct[k]=Math.round((raw>=0 ? raw+100 : raw)*10)/10;
     } else {
       r.summary.fark_pct[k]='';
     }
   });
   const totalSip2=parseInt(r.summary.siparis.toplam)||0;
   const totalYuk2=parseInt(r.summary.yukleme.toplam)||0;
-  r.summary.fark_pct.toplam=(anyPct && totalSip2>0) ? Math.round(totalYuk2/totalSip2*1000)/10 : '';
+  if(anyPct && totalSip2>0){
+    const rawTotal=(totalYuk2-totalSip2)/totalSip2*100;
+    r.summary.fark_pct.toplam=Math.round((rawTotal>=0 ? rawTotal+100 : rawTotal)*10)/10;
+  } else {
+    r.summary.fark_pct.toplam='';
+  }
 }
 function calcSiparisToplam(r){ r.summary.siparis.toplam=SK_KEYS.reduce((s,k)=>s+(parseInt(r.summary.siparis[k])||0),0)||''; }
 function calcKesimToplam(r){   r.summary.kesim.toplam  =SK_KEYS.reduce((s,k)=>s+(parseInt(r.summary.kesim[k])||0),0)||''; }
@@ -651,7 +656,7 @@ function renderForm(){
     {key:'kesim',  label:'Kesim Adeti',  cls:'kesim-row',  editable:true},
     {key:'yukleme',label:'Yükleme Adeti',cls:'yukleme-row',editable:true},
     {key:'fark',   label:'Fark',         cls:'fark-row',   editable:false},
-    {key:'fark_pct',label:'Yükleme %',      cls:'fark-pct-row',editable:false},
+    {key:'fark_pct',label:'Fark %',      cls:'fark-pct-row',editable:false},
   ].map(row=>{
     const rowData = r.summary[row.key] || {};
     const cells=SK_KEYS.map(k=>{
