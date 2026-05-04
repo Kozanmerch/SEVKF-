@@ -390,7 +390,7 @@ function autoCalcSummary(r){
     if((sipHasVal || yukHasVal) && (sip||0)>0){
       anyPct=true;
       const raw=((yuk||0)-(sip||0))/(sip||1)*100;
-      r.summary.fark_pct[k]=Math.round((raw>=0 ? raw+100 : raw)*10)/10;
+      r.summary.fark_pct[k]=Math.round(raw*10)/10;
     } else {
       r.summary.fark_pct[k]='';
     }
@@ -399,7 +399,7 @@ function autoCalcSummary(r){
   const totalYuk2=parseInt(r.summary.yukleme.toplam)||0;
   if(anyPct && totalSip2>0){
     const rawTotal=(totalYuk2-totalSip2)/totalSip2*100;
-    r.summary.fark_pct.toplam=Math.round((rawTotal>=0 ? rawTotal+100 : rawTotal)*10)/10;
+    r.summary.fark_pct.toplam=Math.round(rawTotal*10)/10;
   } else {
     r.summary.fark_pct.toplam='';
   }
