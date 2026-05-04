@@ -274,13 +274,20 @@ function calcNetKg(box){
   return net>0 ? (Number.isInteger(net)?String(net):net.toFixed(1).replace(/\.0$/,'')) : '';
 }
 
-// Auto Brüt KG from gramaj: rowTotal * gramaj(g) / 1000
+// Auto Brüt KG: totalUnits (incl. koliAdet) * gramaj(g) / 1000
 function calcBrutKgAuto(box, gramaj){
   if(!gramaj) return '';
   const tot = calcRowTotal(box);
   if(!tot) return '';
   const val = tot * gramaj / 1000;
-  return Number.isInteger(val) ? String(val) : val.toFixed(2).replace(/\.?0+$/,'');
+  const rounded = Math.round(val * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace(/\.?0+$/,'');
+}
+
+// Effective brutKg: manual override wins, otherwise auto
+function getEffectiveBrutKg(box, gramaj){
+  if(box.brutKgManual) return box.brutKg || '';
+  return gramaj ? calcBrutKgAuto(box, gramaj) : (box.brutKg || '');
 }
 
 function calcEksikAdet(r){
@@ -366,7 +373,7 @@ function calcKesimToplam(r){   r.summary.kesim.toplam  =SK_KEYS.reduce((s,k)=>s+
 function newRecord(){
   return {
     id:'SF-'+Date.now(), createdAt:new Date().toISOString(),
-    tarih:today(), kozanOrderNo:'', musteriPoNo:'', modelAdi:'', tip:' ',
+    tarih:today(), kozanOrderNo:'', musteriPoNo:'', modelAdi:'', tip:'', gramaj:0,
     renk:'', kesimAdeti:'', dikimSevkAdeti:'', dikimIadeAdeti:'', saglamUrunAdeti:'',
     ikiKaliteAdeti:'', eksikAdet:'',
     errors:{baski:'',kumas:'',leke:'',renkFarki:'',aksesuar:'',digerHatalar:''},
@@ -465,7 +472,15 @@ function clearReportsOnly(){
   showDashboard();
   toast('✓ Tüm raporlar temizlendi');
 }
-function openRecord(id){ state.current=state.records.find(r=>r.id===id); if(!state.current) return; state.screen='form'; qs('#home-btn').style.display=''; renderForm(); }
+function openRecord(id){
+  state.current=state.records.find(r=>r.id===id);
+  if(!state.current) return;
+  // Backfill gramaj if missing (old records)
+  if(!state.current.gramaj && state.current.tip){
+    state.current.gramaj=getProductGramaj(state.current.tip)||0;
+  }
+  state.screen='form'; qs('#home-btn').style.display=''; renderForm();
+}
 function createNew(){ const rec=newRecord(); state.records.push(rec); state.current=rec; persist(); state.screen='form'; qs('#home-btn').style.display=''; renderForm(); }
 
 // ══ PRODUCT MANAGER ═══════════════════════════════════════════════════
@@ -571,16 +586,14 @@ function renderForm(){
   const fasonOpts=`<option value="">— Seç —</option>`+(names.fason||[]).map(n=>`<option value="${n}" ${r.fasonSorumlu===n?'selected':''}>${n}</option>`).join('');
   const utuOpts=`<option value="">— Seç —</option>`+(names.utu||[]).map(n=>`<option value="${n}" ${r.utuSorumlu===n?'selected':''}>${n}</option>`).join('');
 
-  const gramaj = getProductGramaj(r.tip);
+  const gramaj = parseFloat(r.gramaj)||0;
 
   const boxRows=r.boxes.map((b,i)=>{
     const tot=calcRowTotal(b);
     // Auto-calc brutKg if gramaj is set and no manual override
-    const autoBrut = gramaj ? calcBrutKgAuto(b, gramaj) : '';
-    const brutDisplay = b.brutKgManual ? b.brutKg : (autoBrut || b.brutKg || '');
-    const brutKgVal = b.brutKgManual ? b.brutKg : (autoBrut !== '' ? autoBrut : b.brutKg);
-    const netKg=calcNetKg({...b, brutKg: brutKgVal});
-    const brutIsAuto = gramaj && !b.brutKgManual && autoBrut!=='';
+    const effBrut = getEffectiveBrutKg(b, gramaj);
+    const netKg=calcNetKg({...b, brutKg: effBrut});
+    const brutIsAuto = gramaj && !b.brutKgManual && effBrut!=='';
     return `<tr>
       <td class="row-num">${i+1}</td>
       <td style="padding:2px;white-space:nowrap">
@@ -594,7 +607,7 @@ function renderForm(){
       <td><input class="auto-val" value="${b.koli2||''}" readonly tabindex="-1" style="min-width:28px"></td>
       ${SK_KEYS.map(k=>`<td><input value="${b[k]||''}" oninput="updateBox(${i},'${k}',this.value)" style="min-width:32px"></td>`).join('')}
       <td><input class="auto-val" id="bt-tot-${i}" value="${tot||''}" readonly tabindex="-1" style="min-width:38px"></td>
-      <td><input ${brutIsAuto?'class="auto-val"':''} id="bt-brut-${i}" value="${brutIsAuto?brutDisplay:(b.brutKg||'')}" oninput="updateBrutKg(${i},this.value)" style="min-width:42px" placeholder="kg" title="${brutIsAuto?`Otomatik: ${gramaj}g × adet`:'Manuel'}"></td>
+      <td><input ${brutIsAuto?'class="auto-val"':''} id="bt-brut-${i}" value="${effBrut}" oninput="updateBrutKg(${i},this.value)" style="min-width:42px" placeholder="kg" title="${brutIsAuto?`Otomatik: ${gramaj}g × adet`:'Manuel'}"></td>
       <td><input class="auto-val" id="bt-net-${i}" value="${netKg}" readonly tabindex="-1" style="min-width:42px"></td>
       <td style="padding:2px" class="no-print"><button class="del-btn" onclick="removeBox(${i})">✕</button></td>
     </tr>`;
@@ -633,8 +646,7 @@ function renderForm(){
       <div class="grid-2">
         <div class="field"><label>Model Adı</label><input id="f-modeladi" value="${r.modelAdi||''}" placeholder=" " oninput="updateField('modelAdi',this.value)"></div>
         <div class="field"><label>Ürün Tipi</label>
-          <select oninput="updateField('tip',this.value);renderForm()">${prodOpts}</select>
-          ${gramaj?`<div style="margin-top:4px;font-size:11px;color:var(--accent2);font-family:'DM Mono',monospace">⚖️ ${gramaj}g/adet → Brüt KG otomatik</div>`:'<div style="margin-top:4px;font-size:11px;color:var(--muted)">⚖️ Gramaj yok — <button onclick="showProductManager()" style="background:none;border:none;color:var(--accent2);font-size:11px;cursor:pointer;padding:0;font-family:inherit">Ürün Tiplerinden ekle</button></div>'}
+          <select oninput="updateField('tip',this.value);updateField('gramaj',getProductGramaj(this.value));renderForm()">${prodOpts}</select>
         </div>
       </div>
       <div class="grid-2">
@@ -789,49 +801,52 @@ function updateBoxKoli(idx,key,val){
     r.boxes[idx][key]=val;
     autoKoliNumbers(r);
     autoCalcSummary(r);
+    // Save effective brutKg for all boxes into storage
+    const g=parseFloat(r.gramaj)||0;
+    if(g){
+      r.boxes.forEach(b=>{ if(!b.brutKgManual) b.brutKg=calcBrutKgAuto(b,g)||''; });
+    }
   });
   renderForm();
 }
 
 function updateBox(idx,key,val){
-  updateRecord(r=>{ r.boxes[idx][key]=val; autoCalcSummary(r); });
-  const r=state.current;
-  const b=r.boxes[idx];
-  const gramaj=getProductGramaj(r.tip);
-  // Row total
-  const totEl=qs(`#bt-tot-${idx}`); if(totEl) totEl.value=calcRowTotal(b)||'';
-  // Auto brutKg
-  if(gramaj && !b.brutKgManual){
-    const autoBrut=calcBrutKgAuto(b,gramaj);
-    const brutEl=qs(`#bt-brut-${idx}`); if(brutEl) brutEl.value=autoBrut;
-    const netEl=qs(`#bt-net-${idx}`); if(netEl) netEl.value=calcNetKg({...b,brutKg:autoBrut});
-  } else {
-    const netEl=qs(`#bt-net-${idx}`); if(netEl) netEl.value=calcNetKg(b);
-  }
-  refreshTotals();
-  refreshSummaryDisplay();
+  updateRecord(r=>{
+    r.boxes[idx][key]=val;
+    autoCalcSummary(r);
+    const g=parseFloat(r.gramaj)||0;
+    if(g && !r.boxes[idx].brutKgManual){
+      r.boxes[idx].brutKg=calcBrutKgAuto(r.boxes[idx],g)||'';
+    }
+  });
+  renderForm();
+}
+
+function refreshBrutKgAll(){
+  const r=state.current; if(!r) return;
+  // gramaj already saved to r by updateField before this is called
+  updateRecord(rec=>{
+    const g=parseFloat(rec.gramaj)||0;
+    if(g){
+      rec.boxes.forEach(b=>{ if(!b.brutKgManual) b.brutKg=calcBrutKgAuto(b,g)||''; });
+    }
+  });
+  renderForm();
 }
 
 function updateBrutKg(idx, val){
   updateRecord(r=>{
+    const g=parseFloat(r.gramaj)||0;
     if(val===''||val===null){
-      // Clear manual override — revert to auto
       r.boxes[idx].brutKgManual=false;
-      r.boxes[idx].brutKg='';
+      r.boxes[idx].brutKg=g?calcBrutKgAuto(r.boxes[idx],g)||'':'';
     } else {
       r.boxes[idx].brutKgManual=true;
       r.boxes[idx].brutKg=val;
     }
     autoCalcSummary(r);
   });
-  const r=state.current;
-  // effective brutKg for net calc
-  const b=r.boxes[idx];
-  const gramaj=getProductGramaj(r.tip);
-  const autoBrut=gramaj?calcBrutKgAuto(b,gramaj):'';
-  const effectiveBrut=b.brutKgManual?b.brutKg:(autoBrut||b.brutKg||'');
-  const netEl=qs(`#bt-net-${idx}`); if(netEl) netEl.value=calcNetKg({...b,brutKg:effectiveBrut});
-  refreshTotals();
+  renderForm();
 }
 
 function updateSummary(rowKey,sizeKey,val){
@@ -849,18 +864,13 @@ function updateSummary(rowKey,sizeKey,val){
 
 function refreshTotals(){
   const r=state.current; if(!r) return;
-  const gramaj=getProductGramaj(r.tip);
+  const gramaj=parseFloat(r.gramaj)||0;
   SK_KEYS.forEach(k=>{ const el=qs(`#ft-${k}`); if(el) el.value=calcColTotal(r.boxes,k)||''; });
   const g=qs('#ft-grand'); if(g) g.value=r.boxes.reduce((s,b)=>s+calcRowTotal(b),0)||'';
-  // brut/net kg totals — use effective brutKg (auto or manual)
   const fmtKg=v=>v?(Number.isInteger(v)?String(v):v.toFixed(1).replace(/\.0$/,'')):''
-  const totalBrut=r.boxes.reduce((s,b)=>{
-    const autoBrut=gramaj&&!b.brutKgManual?parseFloat(calcBrutKgAuto(b,gramaj)||0):0;
-    return s+(b.brutKgManual?(parseFloat(b.brutKg)||0):autoBrut||(parseFloat(b.brutKg)||0));
-  },0);
+  const totalBrut=r.boxes.reduce((s,b)=>s+(parseFloat(getEffectiveBrutKg(b,gramaj))||0),0);
   const totalNet=r.boxes.reduce((s,b)=>{
-    const autoBrut=gramaj&&!b.brutKgManual?calcBrutKgAuto(b,gramaj):'';
-    const eff=b.brutKgManual?b.brutKg:(autoBrut||b.brutKg||'');
+    const eff=getEffectiveBrutKg(b,gramaj);
     return s+(parseFloat(calcNetKg({...b,brutKg:eff}))||0);
   },0);
   const bEl=qs('#ft-brut-kg'); if(bEl) bEl.value=fmtKg(totalBrut);
@@ -941,11 +951,8 @@ function buildPrint(){
   const dash=v=>v||'—';
 
   // Only include rows that have at least one size filled OR brutKg filled
-  const gramajPrint = getProductGramaj(r.tip);
-  const getEffBrut = b => {
-    const auto = gramajPrint && !b.brutKgManual ? calcBrutKgAuto(b, gramajPrint) : '';
-    return b.brutKgManual ? b.brutKg : (auto || b.brutKg || '');
-  };
+  const gramajPrint = parseFloat(r.gramaj)||0;
+  const getEffBrut = b => getEffectiveBrutKg(b, gramajPrint);
   const filledBoxes = r.boxes.filter(b =>
     SK_KEYS.some(k => parseInt(b[k]) > 0) || parseFloat(getEffBrut(b)) > 0
   );
