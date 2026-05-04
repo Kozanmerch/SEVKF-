@@ -71,6 +71,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .summary-table tr.kesim-row td{background:rgba(245,158,11,0.05);}
 .summary-table tr.yukleme-row td{background:rgba(34,197,94,0.05);}
 .summary-table tr.fark-row td{background:rgba(239,68,68,0.04);}
+.summary-table tr.fark-pct-row td{background:rgba(239,68,68,0.08);}
 /* TOAST */
 .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border2);border-radius:24px;padding:10px 20px;font-size:13px;font-weight:500;z-index:999;animation:slideUp 0.2s ease;white-space:nowrap;pointer-events:none;}
 @keyframes slideUp{from{opacity:0;transform:translateX(-50%) translateY(10px);}}
@@ -107,7 +108,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   #print-area{display:block!important;}
   .no-print{display:none!important;}
   @page{margin:7mm;size:A4 portrait;}
-
+  .pr{padding-bottom:90px;}
+  .pr-footer-wrap{position:fixed;bottom:0;left:0;right:0;background:#fff;padding:0 7mm 4mm;}
   img{-webkit-print-color-adjust:exact;print-color-adjust:exact;max-width:100%;}
 }
 #print-area{display:none;}
@@ -301,28 +303,40 @@ function getEffectiveBrutKg(box, gramaj){
 }
 
 function calcEksikAdet(r){
+  const totalSip = parseInt(r.summary.siparis.toplam) || 0;
+  const totalYuk = parseInt(r.summary.yukleme.toplam) || 0;
+
   const hasSip = r.summary.siparis.toplam !== '' && r.summary.siparis.toplam !== undefined;
   const hasYuk = r.summary.yukleme.toplam !== '' && r.summary.yukleme.toplam !== undefined;
 
-  if(!hasSip && !hasYuk){ r.eksikAdet = ''; return ''; }
+  if(!hasSip && !hasYuk){ 
+    r.eksikAdet = ''; 
+    return ''; 
+  }
 
-  const totalSip = parseInt(r.summary.siparis.toplam) || 0;
-  const totalYuk = parseInt(r.summary.yukleme.toplam) || 0;
-  const diff = totalYuk - totalSip;
-  // positive diff → 0 (no shortage), negative diff → flip sign (shortage amount)
-  const val = diff >= 0 ? 0 : diff * -1;
+  const raw = totalYuk - totalSip;
+
+  // 🔥 NEW LOGIC
+  const val = raw > 0 ? 0 : raw * -1;
+
   r.eksikAdet = val;
   return val;
 }
 
 
 function updateEksikAdet(){
-  const r = state.current;
+  const r = state.current; 
   if(!r) return;
+
   autoCalcSummary(r);
+
+  const raw = parseFloat(calcEksikAdet(r)) || 0;
+  const val = raw > 0 ? 0 : raw;
+
   persist();
-  const el = qs('#f-eksikAdet');
-  if(el){ const v=r.eksikAdet; el.value=(v!==''&&v!==undefined)?v:''; }
+
+  const el = qs('#f-eksikAdet'); 
+  if(el) el.value = val;
 }
 
 function autoKoliNumbers(r){
@@ -349,14 +363,14 @@ function autoCalcSummary(r){
   let totalF=0;
   let anyEntered=false;
   SK_KEYS.forEach(k=>{
+    const sip=parseInt(r.summary.siparis[k]);
+    const yuk=parseInt(r.summary.yukleme[k]);
     const sipHasVal = r.summary.siparis[k]!=='' && r.summary.siparis[k]!==undefined;
     const yukHasVal = r.summary.yukleme[k]!=='' && r.summary.yukleme[k]!==undefined;
     if(sipHasVal || yukHasVal){
       anyEntered=true;
-      const sip=parseInt(r.summary.siparis[k])||0;
-      const yuk=parseInt(r.summary.yukleme[k])||0;
-      const diff=yuk-sip; // Yükleme − Sipariş
-      r.summary.fark[k]=diff;
+      const diff=(yuk||0)-(sip||0);
+      r.summary.fark[k]=diff; // can be 0
       totalF+=diff;
     } else {
       r.summary.fark[k]='';
@@ -365,6 +379,25 @@ function autoCalcSummary(r){
   r.summary.fark.toplam=anyEntered?totalF:'';
   // update eksik adet from summary totals
   calcEksikAdet(r);
+  // calc fark % = yukleme / siparis * 100
+  if(!r.summary.fark_pct) r.summary.fark_pct={xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''};
+  let anyPct=false;
+  SK_KEYS.forEach(k=>{
+    const sip=parseInt(r.summary.siparis[k]);
+    const yuk=parseInt(r.summary.yukleme[k]);
+    const sipHasVal = r.summary.siparis[k]!=='' && r.summary.siparis[k]!==undefined;
+    const yukHasVal = r.summary.yukleme[k]!=='' && r.summary.yukleme[k]!==undefined;
+    if((sipHasVal || yukHasVal) && (sip||0)>0){
+      anyPct=true;
+      const pct=((yuk||0)/(sip||1)*100);
+      r.summary.fark_pct[k]=Math.round(pct*10)/10;
+    } else {
+      r.summary.fark_pct[k]='';
+    }
+  });
+  const totalSip2=parseInt(r.summary.siparis.toplam)||0;
+  const totalYuk2=parseInt(r.summary.yukleme.toplam)||0;
+  r.summary.fark_pct.toplam=(anyPct && totalSip2>0) ? Math.round(totalYuk2/totalSip2*1000)/10 : '';
 }
 function calcSiparisToplam(r){ r.summary.siparis.toplam=SK_KEYS.reduce((s,k)=>s+(parseInt(r.summary.siparis[k])||0),0)||''; }
 function calcKesimToplam(r){   r.summary.kesim.toplam  =SK_KEYS.reduce((s,k)=>s+(parseInt(r.summary.kesim[k])||0),0)||''; }
@@ -386,6 +419,7 @@ function newRecord(){
       kesim:  {xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''},
       yukleme:{xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''},
       fark:   {xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''},
+      fark_pct:{xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''},
     },
     aciklama:'', fasonSorumlu:'', utuSorumlu:'',
   };
@@ -617,16 +651,20 @@ function renderForm(){
     {key:'kesim',  label:'Kesim Adeti',  cls:'kesim-row',  editable:true},
     {key:'yukleme',label:'Yükleme Adeti',cls:'yukleme-row',editable:true},
     {key:'fark',   label:'Fark',         cls:'fark-row',   editable:false},
+    {key:'fark_pct',label:'Fark %',      cls:'fark-pct-row',editable:false},
   ].map(row=>{
+    const rowData = r.summary[row.key] || {};
     const cells=SK_KEYS.map(k=>{
-      const v=r.summary[row.key][k];
+      const v=rowData[k];
       if(row.editable) return `<td><input value="${v||''}" oninput="updateSummary('${row.key}','${k}',this.value)"></td>`;
-      return `<td class="${row.key==='fark'?'fark-cell':''}">${v!==''&&v!==undefined?v:'—'}</td>`;
+      const disp = (v!==''&&v!==undefined) ? (row.key==='fark_pct'?v+'%':v) : '—';
+      return `<td class="${(row.key==='fark'||row.key==='fark_pct')?'fark-cell':''}">${disp}</td>`;
     }).join('');
-    const tot=r.summary[row.key].toplam;
+    const tot=rowData.toplam;
+    const totDisp = (tot!==''&&tot!==undefined) ? (row.key==='fark_pct'?tot+'%':tot) : '—';
     const totTd=row.editable
       ? `<td class="total-cell"><input class="auto-val" id="sum-tot-${row.key}" value="${tot!==''&&tot!==undefined?tot:''}" readonly tabindex="-1"></td>`
-      : `<td class="${row.key==='fark'?'fark-cell':'total-cell'}" id="sum-tot-${row.key}">${tot!==''&&tot!==undefined?tot:'—'}</td>`;
+      : `<td class="${(row.key==='fark'||row.key==='fark_pct')?'fark-cell':'total-cell'}" id="sum-tot-${row.key}">${totDisp}</td>`;
     return `<tr class="${row.cls}"><td class="label-cell">${row.label}</td>${cells}${totTd}</tr>`;
   }).join('');
 
@@ -868,6 +906,26 @@ function refreshSummaryDisplay(){
       ftot.textContent=(ft!==''&&ft!==undefined)?ft:'—';
     }
   }
+  if(rows[4]){
+    if(!r.summary.fark_pct) r.summary.fark_pct={xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''};
+    const tds=rows[4].querySelectorAll('td');
+    SK_KEYS.forEach((k,i)=>{
+      if(tds[i+1]){
+        const v=r.summary.fark_pct[k];
+        tds[i+1].textContent=(v!==''&&v!==undefined)?v+'%':'—';
+      }
+    });
+    const l=tds[SK_KEYS.length+1];
+    if(l){
+      const ft=r.summary.fark_pct.toplam;
+      l.textContent=(ft!==''&&ft!==undefined)?ft+'%':'—';
+    }
+    const ftot=qs('#sum-tot-fark_pct');
+    if(ftot){
+      const ft=r.summary.fark_pct.toplam;
+      ftot.textContent=(ft!==''&&ft!==undefined)?ft+'%':'—';
+    }
+  }
   // eksik adet
   const eksEl=qs('#f-eksikAdet');
   if(eksEl){ const v=r.eksikAdet; eksEl.value=(v!==''&&v!==undefined)?v:''; }
@@ -939,19 +997,25 @@ function buildPrint(){
     {key:'kesim',  label:'Kesim Adeti'},
     {key:'yukleme',label:'Yükleme Adeti'},
     {key:'fark',   label:'Fark'},
+    {key:'fark_pct',label:'Fark %'},
   ].map(rd=>`<tr>
     <td class="row-lbl">${rd.label}</td>
     ${SK_KEYS.map(k=>{
-      const v=r.summary[rd.key][k];
+      const src = rd.key==='fark_pct' ? (r.summary.fark_pct||{}) : r.summary[rd.key];
+      const v=src[k];
       if(rd.key==='fark'){
-        // show 0 if value is 0, blank if not entered
         return `<td>${(v!==''&&v!==undefined)?v:''}</td>`;
+      }
+      if(rd.key==='fark_pct'){
+        return `<td>${(v!==''&&v!==undefined)?v+'%':''}</td>`;
       }
       return `<td>${v||''}</td>`;
     }).join('')}
     <td class="bold-t">${(()=>{
-      const t=r.summary[rd.key].toplam;
+      const src = rd.key==='fark_pct' ? (r.summary.fark_pct||{}) : r.summary[rd.key];
+      const t=src.toplam;
       if(rd.key==='fark') return (t!==''&&t!==undefined)?t:'';
+      if(rd.key==='fark_pct') return (t!==''&&t!==undefined)?t+'%':'';
       return t||'';
     })()}</td>
   </tr>`).join('');
