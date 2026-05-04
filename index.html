@@ -274,26 +274,22 @@ function calcNetKgAuto(box, gramaj){
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace(/\.?0+$/,'');
 }
 
-// Brüt KG = Net KG + number of boxes (1 kg per box)
+// Brüt KG = Net KG + number of boxes in row (1 kg per box for packaging weight)
 function calcBrutKg(box, netKg){
   const net = parseFloat(netKg)||0;
   if(!net) return '';
-  const k1=parseInt(box.koli1)||0, k2=parseInt(box.koli2)||0;
-  const count=(k1>0&&k2>=k1)?(k2-k1+1):1;
+  const count = parseInt(box.koliAdet)||1;
   const brut = net + count;
-  return Number.isInteger(brut)?String(brut):brut.toFixed(1).replace(/\.0$/,'');
+  return Number.isInteger(brut)?String(brut):brut.toFixed(2).replace(/\.?0+$/,'');
 }
 
-// Legacy alias kept for callers that pass brutKg directly (manual override path)
+// Legacy function (unused in main flow, kept for safety)
 function calcNetKg(box){
-  // This is only called in the manual-override path where brutKg is already set
-  // In that case Net = Brut - boxCount
   const brut = parseFloat(box.brutKg)||0;
   if(!brut) return '';
-  const k1=parseInt(box.koli1)||0, k2=parseInt(box.koli2)||0;
-  const count=(k1>0&&k2>=k1)?(k2-k1+1):1;
+  const count = parseInt(box.koliAdet)||1;
   const net = brut - count;
-  return net>0 ? (Number.isInteger(net)?String(net):net.toFixed(1).replace(/\.0$/,'')) : '';
+  return net>0 ? (Number.isInteger(net)?String(net):net.toFixed(2).replace(/\.?0+$/,'')) : '';
 }
 
 // Effective netKg: auto = units * gramaj / 1000
@@ -698,7 +694,7 @@ function renderForm(){
           <thead><tr>
             <th>#</th><th>Adet</th><th>Başl.</th><th>Bitiş</th>
             ${SIZES.map(s=>`<th>${s}</th>`).join('')}
-            <th>Toplam</th><th>Brüt KG</th><th>Net KG</th>
+            <th>Toplam</th><th>Net KG</th><th>Brüt KG</th>
             <th class="no-print" style="width:26px"></th>
           </tr></thead>
           <tbody id="box-tbody">${boxRows}</tbody>
