@@ -264,18 +264,8 @@ function calcColTotal(boxes, key){
   }, 0);
 }
 
-// Net KG = Brüt KG minus 1kg per box in the row
-function calcNetKg(box){
-  const brut = parseFloat(box.brutKg)||0;
-  if(!brut) return '';
-  const k1=parseInt(box.koli1)||0, k2=parseInt(box.koli2)||0;
-  const count=(k1>0&&k2>=k1)?(k2-k1+1):1;
-  const net = brut - count;
-  return net>0 ? (Number.isInteger(net)?String(net):net.toFixed(1).replace(/\.0$/,'')) : '';
-}
-
-// Auto Brüt KG: totalUnits (incl. koliAdet) * gramaj(g) / 1000
-function calcBrutKgAuto(box, gramaj){
+// Auto Net KG: totalUnits (incl. koliAdet) * gramaj(g) / 1000
+function calcNetKgAuto(box, gramaj){
   if(!gramaj) return '';
   const tot = calcRowTotal(box);
   if(!tot) return '';
@@ -284,10 +274,35 @@ function calcBrutKgAuto(box, gramaj){
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace(/\.?0+$/,'');
 }
 
-// Effective brutKg: manual override wins, otherwise auto
+// Brüt KG = Net KG + number of boxes (1 kg per box)
+function calcBrutKg(box, netKg){
+  const net = parseFloat(netKg)||0;
+  if(!net) return '';
+  const k1=parseInt(box.koli1)||0, k2=parseInt(box.koli2)||0;
+  const count=(k1>0&&k2>=k1)?(k2-k1+1):1;
+  const brut = net + count;
+  return Number.isInteger(brut)?String(brut):brut.toFixed(1).replace(/\.0$/,'');
+}
+
+// Legacy alias kept for callers that pass brutKg directly (manual override path)
+function calcNetKg(box){
+  // This is only called in the manual-override path where brutKg is already set
+  // In that case Net = Brut - boxCount
+  const brut = parseFloat(box.brutKg)||0;
+  if(!brut) return '';
+  const k1=parseInt(box.koli1)||0, k2=parseInt(box.koli2)||0;
+  const count=(k1>0&&k2>=k1)?(k2-k1+1):1;
+  const net = brut - count;
+  return net>0 ? (Number.isInteger(net)?String(net):net.toFixed(1).replace(/\.0$/,'')) : '';
+}
+
+// Effective netKg: auto = units * gramaj / 1000
+function getEffectiveNetKg(box, gramaj){
+  return gramaj ? calcNetKgAuto(box, gramaj) : '';
+}
+// Keep old name for remaining callers
 function getEffectiveBrutKg(box, gramaj){
-  if(box.brutKgManual) return box.brutKg || '';
-  return gramaj ? calcBrutKgAuto(box, gramaj) : (box.brutKg || '');
+  return getEffectiveNetKg(box, gramaj);
 }
 
 function calcEksikAdet(r){
@@ -503,7 +518,7 @@ function showProductManager(){
       <div id="product-list">${renderProductList(products)}</div>
     </div>
     <div class="modal-footer">
-      <span style="font-size:11px;color:var(--muted);flex:1">Gramaj girilince Brüt KG otomatik hesaplanır.</span>
+      <span style="font-size:11px;color:var(--muted);flex:1">Gramaj girilince Net KG otomatik hesaplanır.</span>
       <button class="btn btn-ghost" onclick="closeModal()">Kapat</button>
     </div>
   </div>`;
@@ -544,7 +559,6 @@ function updateProductGramaj(idx, val){
   const p=loadProducts();
   p[idx].gramaj=parseFloat(val)||'';
   saveProducts(p);
-  // If the current record uses this product, re-render form to update auto brutKg
   if(state.current && state.current.tip===p[idx].name && state.screen==='form') renderForm();
   toast('✓ Gramaj güncellendi');
 }
@@ -590,10 +604,9 @@ function renderForm(){
 
   const boxRows=r.boxes.map((b,i)=>{
     const tot=calcRowTotal(b);
-    // Auto-calc brutKg if gramaj is set and no manual override
-    const effBrut = getEffectiveBrutKg(b, gramaj);
-    const netKg=calcNetKg({...b, brutKg: effBrut});
-    const brutIsAuto = gramaj && !b.brutKgManual && effBrut!=='';
+    const effNet = getEffectiveNetKg(b, gramaj);
+    const effBrut = effNet!=='' ? calcBrutKg(b, effNet) : '';
+    const netIsAuto = gramaj && effNet!=='';
     return `<tr>
       <td class="row-num">${i+1}</td>
       <td style="padding:2px;white-space:nowrap">
@@ -607,8 +620,8 @@ function renderForm(){
       <td><input class="auto-val" value="${b.koli2||''}" readonly tabindex="-1" style="min-width:28px"></td>
       ${SK_KEYS.map(k=>`<td><input value="${b[k]||''}" oninput="updateBox(${i},'${k}',this.value)" style="min-width:32px"></td>`).join('')}
       <td><input class="auto-val" id="bt-tot-${i}" value="${tot||''}" readonly tabindex="-1" style="min-width:38px"></td>
-      <td><input ${brutIsAuto?'class="auto-val"':''} id="bt-brut-${i}" value="${effBrut}" oninput="updateBrutKg(${i},this.value)" style="min-width:42px" placeholder="kg" title="${brutIsAuto?`Otomatik: ${gramaj}g × adet`:'Manuel'}"></td>
-      <td><input class="auto-val" id="bt-net-${i}" value="${netKg}" readonly tabindex="-1" style="min-width:42px"></td>
+      <td><input class="auto-val" id="bt-net-${i}" value="${effNet}" readonly tabindex="-1" style="min-width:42px" title="${netIsAuto?`Otomatik: ${gramaj}g × adet`:''}"></td>
+      <td><input class="auto-val" id="bt-brut-${i}" value="${effBrut}" readonly tabindex="-1" style="min-width:42px" title="${effBrut?`Net + koli sayısı`:''}"></td>
       <td style="padding:2px" class="no-print"><button class="del-btn" onclick="removeBox(${i})">✕</button></td>
     </tr>`;
   }).join('');
@@ -693,8 +706,8 @@ function renderForm(){
             <td class="row-num" colspan="4" style="text-align:left;padding-left:6px;font-size:9px;font-weight:700;font-family:'DM Sans',sans-serif">TOPLAM</td>
             ${SK_KEYS.map(k=>`<td><input class="auto-val" id="ft-${k}" value="${calcColTotal(r.boxes,k)||''}" readonly tabindex="-1"></td>`).join('')}
             <td><input class="auto-val" id="ft-grand" value="${grdTotal||''}" readonly tabindex="-1"></td>
-            <td><input class="auto-val" id="ft-brut-kg" value="${(()=>{const t=r.boxes.reduce((s,b)=>s+(parseFloat(b.brutKg)||0),0);return t?(Number.isInteger(t)?t:t.toFixed(1).replace(/\.0$/,'')):''})()}" readonly tabindex="-1"></td>
-            <td><input class="auto-val" id="ft-net-kg" value="${(()=>{const t=r.boxes.reduce((s,b)=>s+(parseFloat(calcNetKg(b))||0),0);return t?(Number.isInteger(t)?t:t.toFixed(1).replace(/\.0$/,'')):''})()}" readonly tabindex="-1"></td>
+            <td><input class="auto-val" id="ft-net-kg" value="${(()=>{const gramaj=parseFloat(r.gramaj)||0;const t=r.boxes.reduce((s,b)=>s+(parseFloat(getEffectiveNetKg(b,gramaj))||0),0);return t?(Number.isInteger(t)?t:t.toFixed(1).replace(/\.0$/,'')):''})()}" readonly tabindex="-1"></td>
+            <td><input class="auto-val" id="ft-brut-kg" value="${(()=>{const gramaj=parseFloat(r.gramaj)||0;const t=r.boxes.reduce((s,b)=>{const n=getEffectiveNetKg(b,gramaj);return s+(parseFloat(n)?parseFloat(calcBrutKg(b,n))||0:0);},0);return t?(Number.isInteger(t)?t:t.toFixed(1).replace(/\.0$/,'')):''})()}" readonly tabindex="-1"></td>
             <td class="no-print"></td>
           </tr></tfoot>
         </table>
@@ -814,39 +827,21 @@ function updateBox(idx,key,val){
   updateRecord(r=>{
     r.boxes[idx][key]=val;
     autoCalcSummary(r);
-    const g=parseFloat(r.gramaj)||0;
-    if(g && !r.boxes[idx].brutKgManual){
-      r.boxes[idx].brutKg=calcBrutKgAuto(r.boxes[idx],g)||'';
-    }
   });
-  renderForm();
+  // Update only totals/kg cells — no full re-render so focus is preserved
+  refreshTotals();
+  refreshSummaryDisplay();
+  const eksEl=qs('#f-eksikAdet');
+  if(eksEl&&state.current){ const v=state.current.eksikAdet; eksEl.value=(v!==''&&v!==undefined)?v:''; }
 }
 
 function refreshBrutKgAll(){
-  const r=state.current; if(!r) return;
   // gramaj already saved to r by updateField before this is called
-  updateRecord(rec=>{
-    const g=parseFloat(rec.gramaj)||0;
-    if(g){
-      rec.boxes.forEach(b=>{ if(!b.brutKgManual) b.brutKg=calcBrutKgAuto(b,g)||''; });
-    }
-  });
   renderForm();
 }
 
 function updateBrutKg(idx, val){
-  updateRecord(r=>{
-    const g=parseFloat(r.gramaj)||0;
-    if(val===''||val===null){
-      r.boxes[idx].brutKgManual=false;
-      r.boxes[idx].brutKg=g?calcBrutKgAuto(r.boxes[idx],g)||'':'';
-    } else {
-      r.boxes[idx].brutKgManual=true;
-      r.boxes[idx].brutKg=val;
-    }
-    autoCalcSummary(r);
-  });
-  renderForm();
+  // Brüt KG is now always auto-calculated (Net KG + box count), no manual override
 }
 
 function updateSummary(rowKey,sizeKey,val){
@@ -868,13 +863,22 @@ function refreshTotals(){
   SK_KEYS.forEach(k=>{ const el=qs(`#ft-${k}`); if(el) el.value=calcColTotal(r.boxes,k)||''; });
   const g=qs('#ft-grand'); if(g) g.value=r.boxes.reduce((s,b)=>s+calcRowTotal(b),0)||'';
   const fmtKg=v=>v?(Number.isInteger(v)?String(v):v.toFixed(1).replace(/\.0$/,'')):''
-  const totalBrut=r.boxes.reduce((s,b)=>s+(parseFloat(getEffectiveBrutKg(b,gramaj))||0),0);
-  const totalNet=r.boxes.reduce((s,b)=>{
-    const eff=getEffectiveBrutKg(b,gramaj);
-    return s+(parseFloat(calcNetKg({...b,brutKg:eff}))||0);
+  const totalNet=r.boxes.reduce((s,b)=>s+(parseFloat(getEffectiveNetKg(b,gramaj))||0),0);
+  const totalBrut=r.boxes.reduce((s,b)=>{
+    const n=getEffectiveNetKg(b,gramaj);
+    return s+(parseFloat(n)?parseFloat(calcBrutKg(b,n))||0:0);
   },0);
-  const bEl=qs('#ft-brut-kg'); if(bEl) bEl.value=fmtKg(totalBrut);
   const nEl=qs('#ft-net-kg');  if(nEl) nEl.value=fmtKg(totalNet);
+  const bEl=qs('#ft-brut-kg'); if(bEl) bEl.value=fmtKg(totalBrut);
+  // Update per-row net and brut cells without re-rendering
+  r.boxes.forEach((b,i)=>{
+    const tot=calcRowTotal(b);
+    const effNet=getEffectiveNetKg(b,gramaj);
+    const effBrut=effNet!==''?calcBrutKg(b,effNet):'';
+    const totEl=qs(`#bt-tot-${i}`); if(totEl) totEl.value=tot||'';
+    const netEl=qs(`#bt-net-${i}`); if(netEl) netEl.value=effNet;
+    const brutEl=qs(`#bt-brut-${i}`); if(brutEl) brutEl.value=effBrut;
+  });
 }
 
 function refreshSummaryDisplay(){
@@ -950,30 +954,30 @@ function buildPrint(){
   autoCalcSummary(r);
   const dash=v=>v||'—';
 
-  // Only include rows that have at least one size filled OR brutKg filled
+  // Only include rows that have at least one size filled
   const gramajPrint = parseFloat(r.gramaj)||0;
-  const getEffBrut = b => getEffectiveBrutKg(b, gramajPrint);
+  const getEffNet = b => getEffectiveNetKg(b, gramajPrint);
   const filledBoxes = r.boxes.filter(b =>
-    SK_KEYS.some(k => parseInt(b[k]) > 0) || parseFloat(getEffBrut(b)) > 0
+    SK_KEYS.some(k => parseInt(b[k]) > 0)
   );
 
   const boxTrs=filledBoxes.map(b=>{
     const tot=calcRowTotal(b);
-    const effBrut=getEffBrut(b);
-    const net=calcNetKg({...b,brutKg:effBrut});
+    const effNet=getEffNet(b);
+    const effBrut=effNet!==''?calcBrutKg(b,effNet):'';
     return `<tr>
       <td>${b.koli1||''}</td><td>${b.koli2||''}</td>
       <td class="lt">${r.modelAdi||''}</td>
       ${SK_KEYS.map(k=>`<td>${b[k]||''}</td>`).join('')}
       <td style="font-weight:700">${tot||''}</td>
+      <td>${effNet||''}</td>
       <td>${effBrut||''}</td>
-      <td>${net||''}</td>
     </tr>`;
   }).join('');
 
   // Totals calculated from filledBoxes
-  const totalBrutKg = filledBoxes.reduce((s,b)=>s+(parseFloat(getEffBrut(b))||0),0);
-  const totalNetKg  = filledBoxes.reduce((s,b)=>{const eff=getEffBrut(b);return s+(parseFloat(calcNetKg({...b,brutKg:eff}))||0);},0);
+  const totalNetKg  = filledBoxes.reduce((s,b)=>s+(parseFloat(getEffNet(b))||0),0);
+  const totalBrutKg = filledBoxes.reduce((s,b)=>{const n=getEffNet(b);return s+(parseFloat(n)?parseFloat(calcBrutKg(b,n))||0:0);},0);
   const fmtKg = v => v ? (Number.isInteger(v)?String(v):v.toFixed(1).replace(/\.0$/,'')) : '';
 
   const sumTrs=[
@@ -1049,15 +1053,15 @@ function buildPrint(){
       <thead><tr>
         <th>Başl.</th><th>Bitiş</th><th style="text-align:left">Model Adı</th>
         ${SIZES.map(s=>`<th>${s}</th>`).join('')}
-        <th>Toplam</th><th>Brüt KG</th><th>Net KG</th>
+        <th>Toplam</th><th>Net KG</th><th>Brüt KG</th>
       </tr></thead>
       <tbody>${boxTrs}</tbody>
       <tfoot><tr class="pr-gr">
         <td colspan="3" class="lt" style="font-size:8px;font-weight:700">TOPLAM</td>
         ${SK_KEYS.map(k=>`<td>${calcColTotal(filledBoxes,k)||''}</td>`).join('')}
         <td style="font-weight:700">${filledBoxes.reduce((s,b)=>s+calcRowTotal(b),0)||''}</td>
-        <td>${fmtKg(totalBrutKg)}</td>
         <td>${fmtKg(totalNetKg)}</td>
+        <td>${fmtKg(totalBrutKg)}</td>
       </tr></tfoot>
     </table>
 
