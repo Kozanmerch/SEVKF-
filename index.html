@@ -351,10 +351,11 @@ function autoKoliNumbers(r){
   }
 }
 
+function calcYuklemeToplam(r){ r.summary.yukleme.toplam=SK_KEYS.reduce((s,k)=>s+(parseInt(r.summary.yukleme[k])||0),0)||''; }
+
 function autoCalcSummary(r){
-  let totalY=0;
-  SK_KEYS.forEach(k=>{ const v=calcColTotal(r.boxes,k); r.summary.yukleme[k]=v||''; totalY+=v; });
-  r.summary.yukleme.toplam=totalY||'';
+  // recalc yukleme toplam from its own size cells (user-entered)
+  calcYuklemeToplam(r);
   // recalc siparis toplam in case it drifted
   calcSiparisToplam(r);
   const totalSip=parseInt(r.summary.siparis.toplam)||0;
@@ -627,7 +628,7 @@ function renderForm(){
   const summaryRows=[
     {key:'siparis',label:'Sipariş Adeti',cls:'siparis-row',editable:true},
     {key:'kesim',  label:'Kesim Adeti',  cls:'kesim-row',  editable:true},
-    {key:'yukleme',label:'Yükleme Adeti',cls:'yukleme-row',editable:false},
+    {key:'yukleme',label:'Yükleme Adeti',cls:'yukleme-row',editable:true},
     {key:'fark',   label:'Fark',         cls:'fark-row',   editable:false},
   ].map(row=>{
     const cells=SK_KEYS.map(k=>{
@@ -683,32 +684,6 @@ function renderForm(){
         <div class="field"><label>Aksesuar Hatası</label><input value="${r.errors.aksesuar||''}" placeholder=" " oninput="updateError('aksesuar',this.value)"></div>
         <div class="field"><label>Diğer Hatalar</label><input value="${r.errors.digerHatalar||''}" placeholder=" " oninput="updateError('digerHatalar',this.value)"></div>
       </div>
-    </div>
-
-    <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <div class="card-title" style="margin-bottom:0">Koli Dağılımı</div>
-      </div>
-      <div class="box-table-wrapper">
-        <table class="box-table">
-          <thead><tr>
-            <th>#</th><th>Adet</th><th>Başl.</th><th>Bitiş</th>
-            ${SIZES.map(s=>`<th>${s}</th>`).join('')}
-            <th>Toplam</th><th>Net KG</th><th>Brüt KG</th>
-            <th class="no-print" style="width:26px"></th>
-          </tr></thead>
-          <tbody id="box-tbody">${boxRows}</tbody>
-          <tfoot><tr class="total-row">
-            <td class="row-num" colspan="4" style="text-align:left;padding-left:6px;font-size:9px;font-weight:700;font-family:'DM Sans',sans-serif">TOPLAM</td>
-            ${SK_KEYS.map(k=>`<td><input class="auto-val" id="ft-${k}" value="${calcColTotal(r.boxes,k)||''}" readonly tabindex="-1"></td>`).join('')}
-            <td><input class="auto-val" id="ft-grand" value="${grdTotal||''}" readonly tabindex="-1"></td>
-            <td><input class="auto-val" id="ft-net-kg" value="${(()=>{const gramaj=parseFloat(r.gramaj)||0;const t=r.boxes.reduce((s,b)=>s+(parseFloat(getEffectiveNetKg(b,gramaj))||0),0);return t?(Number.isInteger(t)?t:t.toFixed(1).replace(/\.0$/,'')):''})()}" readonly tabindex="-1"></td>
-            <td><input class="auto-val" id="ft-brut-kg" value="${(()=>{const gramaj=parseFloat(r.gramaj)||0;const t=r.boxes.reduce((s,b)=>{const n=getEffectiveNetKg(b,gramaj);return s+(parseFloat(n)?parseFloat(calcBrutKg(b,n))||0:0);},0);return t?(Number.isInteger(t)?t:t.toFixed(1).replace(/\.0$/,'')):''})()}" readonly tabindex="-1"></td>
-            <td class="no-print"></td>
-          </tr></tfoot>
-        </table>
-      </div>
-      <button class="add-row-btn no-print" onclick="addBox()">+ Satır Ekle</button>
     </div>
 
     <div class="card">
@@ -845,6 +820,7 @@ function updateSummary(rowKey,sizeKey,val){
     r.summary[rowKey][sizeKey]=val;
     if(rowKey==='siparis') calcSiparisToplam(r);
     if(rowKey==='kesim')   calcKesimToplam(r);
+    if(rowKey==='yukleme') calcYuklemeToplam(r);
     autoCalcSummary(r);
   });
   refreshSummaryDisplay();
@@ -883,14 +859,9 @@ function refreshSummaryDisplay(){
   // siparis & kesim totals
   const st=qs('#sum-tot-siparis'); if(st) st.value=r.summary.siparis.toplam!==''?r.summary.siparis.toplam:'';
   const kt=qs('#sum-tot-kesim');   if(kt) kt.value=r.summary.kesim.toplam!==''?r.summary.kesim.toplam:'';
-  // yukleme row (row index 2, td index 0=label, 1..8=sizes, 9=toplam)
+  // yukleme row (row index 2, td index 0=label, 1..8=sizes, 9=toplam) — now editable
+  const ytot=qs('#sum-tot-yukleme'); if(ytot) ytot.value=r.summary.yukleme.toplam!==''?r.summary.yukleme.toplam:'';
   const rows=document.querySelectorAll('.summary-table tbody tr');
-  if(rows[2]){
-    const tds=rows[2].querySelectorAll('td');
-    SK_KEYS.forEach((k,i)=>{ if(tds[i+1]) tds[i+1].textContent=r.summary.yukleme[k]!==''?r.summary.yukleme[k]:'—'; });
-    const l=tds[SK_KEYS.length+1]; if(l) l.textContent=r.summary.yukleme.toplam!==''?r.summary.yukleme.toplam:'—';
-    const ytot=qs('#sum-tot-yukleme'); if(ytot) ytot.textContent=r.summary.yukleme.toplam!==''?r.summary.yukleme.toplam:'—';
-  }
   if(rows[3]){
     const tds=rows[3].querySelectorAll('td');
     SK_KEYS.forEach((k,i)=>{
@@ -1041,24 +1012,6 @@ function buildPrint(){
         <td><span class="pm-label">Ürün Türü</span><span class="pm-val">${dash(r.tip)}</span></td>
         <td colspan="2"><span class="pm-label">Diğer Hatalar</span><span class="pm-val">${dash(r.errors.digerHatalar)}</span></td>
       </tr>
-    </table>
-
-    <!-- KOLİ DAGILIMI -->
-    <div class="pr-bar">KOLİ DAĞILIMI</div>
-    <table class="pr-koli">
-      <thead><tr>
-        <th>Başl.</th><th>Bitiş</th><th style="text-align:left">Model Adı</th>
-        ${SIZES.map(s=>`<th>${s}</th>`).join('')}
-        <th>Toplam</th><th>Net KG</th><th>Brüt KG</th>
-      </tr></thead>
-      <tbody>${boxTrs}</tbody>
-      <tfoot><tr class="pr-gr">
-        <td colspan="3" class="lt" style="font-size:8px;font-weight:700">TOPLAM</td>
-        ${SK_KEYS.map(k=>`<td>${calcColTotal(filledBoxes,k)||''}</td>`).join('')}
-        <td style="font-weight:700">${filledBoxes.reduce((s,b)=>s+calcRowTotal(b),0)||''}</td>
-        <td>${fmtKg(totalNetKg)}</td>
-        <td>${fmtKg(totalBrutKg)}</td>
-      </tr></tfoot>
     </table>
 
     <!-- BEDEN DAGILIMI -->
