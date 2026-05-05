@@ -191,8 +191,18 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 const SK_RECORDS  = 'kozan_sevk_v3';
 const SK_NAMES    = 'kozan_names_v1';
 const SK_PRODUCTS = 'kozan_products_v1';
-const SIZES   = ['XXS','XS','S','M','L','XL','2XL','3XL','4XL'];
-const SK_KEYS = ['xxs','xs','s','m','l','xl','xxl','xxxl','xxxxl'];
+const SK_SIZES    = 'kozan_sizes_v1';
+
+const DEFAULT_SIZES = ['XXS','XS','S','M','L','XL','2XL','3XL','4XL'];
+function loadSizes(){ try{ const r=localStorage.getItem(SK_SIZES); return r?JSON.parse(r):[...DEFAULT_SIZES]; }catch(_){ return [...DEFAULT_SIZES]; } }
+function saveSizes(arr){ try{ localStorage.setItem(SK_SIZES,JSON.stringify(arr)); }catch(_){} }
+function sizeToKey(s){ return s.toLowerCase().replace(/[^a-z0-9]/g,'x').replace(/^[0-9]/,'x$&'); }
+
+let SIZES   = loadSizes();
+let SK_KEYS = SIZES.map(sizeToKey);
+
+function emptyRow(extras={}){ return Object.assign(SK_KEYS.reduce((o,k)=>(o[k]='',o),{}),{toplam:''},extras); }
+function emptyBox(extras={}){ return Object.assign({koli1:'',koli2:'',koliAdet:'1'},SK_KEYS.reduce((o,k)=>(o[k]='',o),{}),{brutKg:''},extras); }
 
 let uiLang = 'tr';
 const TR = {
@@ -359,6 +369,8 @@ function autoCalcSummary(r){
   calcYuklemeToplam(r);
   // recalc siparis toplam in case it drifted
   calcSiparisToplam(r);
+  // recalc saglamUrun toplam
+  calcSaglamUrunToplam(r);
   const totalSip=parseInt(r.summary.siparis.toplam)||0;
   let totalF=0;
   let anyEntered=false;
@@ -380,7 +392,7 @@ function autoCalcSummary(r){
   // update eksik adet from summary totals
   calcEksikAdet(r);
   // calc fark % = yukleme / siparis * 100
-  if(!r.summary.fark_pct) r.summary.fark_pct={xxs:'',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''};
+  if(!r.summary.fark_pct) r.summary.fark_pct=emptyRow();
   let anyPct=false;
   SK_KEYS.forEach(k=>{
     const sip=parseInt(r.summary.siparis[k]);
@@ -406,6 +418,7 @@ function autoCalcSummary(r){
 }
 function calcSiparisToplam(r){ r.summary.siparis.toplam=SK_KEYS.reduce((s,k)=>s+(parseInt(r.summary.siparis[k])||0),0)||''; }
 function calcKesimToplam(r){   r.summary.kesim.toplam  =SK_KEYS.reduce((s,k)=>s+(parseInt(r.summary.kesim[k])||0),0)||''; }
+function calcSaglamUrunToplam(r){ if(!r.summary.saglamUrun) r.summary.saglamUrun=emptyRow(); r.summary.saglamUrun.toplam=SK_KEYS.reduce((s,k)=>s+(parseInt(r.summary.saglamUrun[k])||0),0)||''; }
 
 function newRecord(){
   return {
@@ -414,17 +427,14 @@ function newRecord(){
     renk:'', kesimAdeti:'', dikimSevkAdeti:'', dikimIadeAdeti:'', saglamUrunAdeti:'',
     ikiKaliteAdeti:'', eksikAdet:'',
     errors:{baski:'',kumas:'',leke:'',renkFarki:'',aksesuar:'',digerHatalar:''},
-    boxes:[
-      {koli1:'',koli2:'',koliAdet:'1',xxs:'',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',brutKg:''},
-      {koli1:'',koli2:'',koliAdet:'1',xxs:'',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',brutKg:''},
-      {koli1:'',koli2:'',koliAdet:'1',xxs:'',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',brutKg:''},
-    ],
+    boxes:[emptyBox(),emptyBox(),emptyBox()],
     summary:{
-      siparis:{xxs:'',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''},
-      kesim:  {xxs:'',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''},
-      yukleme:{xxs:'',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''},
-      fark:   {xxs:'',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''},
-      fark_pct:{xxs:'',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''},
+      siparis:   emptyRow(),
+      kesim:     emptyRow(),
+      yukleme:   emptyRow(),
+      saglamUrun:emptyRow(),
+      fark:      emptyRow(),
+      fark_pct:  emptyRow(),
     },
     aciklama:'', fasonSorumlu:'', utuSorumlu:'',
   };
@@ -441,6 +451,7 @@ function showDashboard(){
     <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
       <button class="btn btn-ghost btn-sm" onclick="showProductManager()">🏷️ Ürün Tipleri</button>
       <button class="btn btn-ghost btn-sm" onclick="showNamesManager()">👤 İsimler</button>
+      <button class="btn btn-ghost btn-sm" onclick="showSizesManager()">📐 Bedenler</button>
       <button class="btn btn-ghost btn-sm" onclick="showStorageInfo()">💾 Depolama</button>
     </div>
     ${recs.length ? recs.map(r=>`
@@ -521,6 +532,177 @@ function openRecord(id){
 }
 function createNew(){ const rec=newRecord(); state.records.push(rec); state.current=rec; persist(); state.screen='form'; qs('#home-btn').style.display=''; renderForm(); }
 
+
+// ══ SIZES MANAGER ═════════════════════════════════════════════════════
+// ══ SIZE PRESETS ══════════════════════════════════════════════════════
+const SK_PRESETS = 'kozan_size_presets_v1';
+const BUILTIN_PRESETS = [
+  {name:'Standart', sizes:['2XS','XS','S','M','L','XL','2XL','3XL'], builtin:true},
+  {name:'JD',       sizes:['8-10 YRS','10-12 YRS','12-13 YRS','13-15 YRS'], builtin:true},
+];
+function loadPresets(){ try{ const r=localStorage.getItem(SK_PRESETS); return r?JSON.parse(r):[]; }catch(_){ return []; } }
+function savePresets(p){ try{ localStorage.setItem(SK_PRESETS,JSON.stringify(p)); }catch(_){} }
+function allPresets(){ return [...BUILTIN_PRESETS, ...loadPresets()]; }
+
+function showSizesManager(){
+  const overlay=document.createElement('div'); overlay.className='modal-overlay';
+  overlay.innerHTML=`<div class="modal" style="max-width:680px;width:95vw">
+    <div class="modal-header"><h3>📐 Bedenler</h3><button class="btn btn-ghost btn-sm" onclick="closeModal()">✕</button></div>
+    <div class="modal-body" style="display:grid;grid-template-columns:1fr 1fr;gap:18px;min-height:320px">
+
+      <!-- LEFT: PRESETS -->
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);margin-bottom:2px">Kayıtlı Aralıklar</div>
+        <div id="presets-list" style="display:flex;flex-direction:column;gap:6px;flex:1"></div>
+        <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);margin-bottom:6px">Mevcut listeyi kaydet</div>
+          <div style="display:flex;gap:6px">
+            <input id="preset-name-inp" class="mini-input" style="flex:1" placeholder="Aralık adı (ör: Çocuk, Büyük Beden…)"
+              onkeydown="if(event.key==='Enter')saveCurrentAsPreset()">
+            <button class="btn btn-ghost btn-sm" onclick="saveCurrentAsPreset()">Kaydet</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: ACTIVE SIZES -->
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);margin-bottom:2px">Aktif Bedenler</div>
+        <div id="sizes-list" style="display:flex;flex-direction:column;gap:5px;flex:1"></div>
+        <div style="display:flex;gap:6px;padding-top:6px;border-top:1px solid var(--border)">
+          <input id="sz-inp" class="mini-input" style="flex:1" placeholder="Yeni beden ekle…" maxlength="20"
+            onkeydown="if(event.key==='Enter')addSize()"
+            >
+          <button class="btn btn-ghost btn-sm" onclick="addSize()">+ Ekle</button>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="resetSizes()" style="color:var(--muted);margin-right:auto">↺ Varsayılana sıfırla</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Kapat</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  renderPresetsList();
+  renderSizesList();
+}
+
+function renderPresetsList(){
+  const list=qs('#presets-list'); if(!list) return;
+  const presets=allPresets();
+  if(!presets.length){ list.innerHTML=`<div style="color:var(--muted);font-size:12px;padding:8px 0">Henüz kayıtlı aralık yok.</div>`; return; }
+  const isActive = p => p.sizes.length===SIZES.length && p.sizes.every((s,i)=>s===SIZES[i]);
+  list.innerHTML=presets.map((p,i)=>{
+    const active=isActive(p);
+    const customIdx = p.builtin ? -1 : i - BUILTIN_PRESETS.length;
+    return `<div style="display:flex;align-items:center;gap:6px;background:${active?'rgba(58,111,212,0.12)':'var(--bg3)'};border:1px solid ${active?'var(--accent)':'var(--border2)'};border-radius:var(--r-sm);padding:6px 10px;cursor:pointer" onclick="applyPreset(${i})">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600;color:${active?'var(--accent)':'var(--text)'}">${p.name}${p.builtin?'':''} ${active?'<span style="font-size:9px;background:var(--accent);color:#fff;border-radius:3px;padding:1px 5px;margin-left:4px">AKTİF</span>':''}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.sizes.join(' · ')}</div>
+      </div>
+      ${!p.builtin?`<button class="del-btn" onclick="event.stopPropagation();deletePreset(${customIdx})" title="Sil">✕</button>`:''}
+    </div>`;
+  }).join('');
+}
+
+function renderSizesList(){
+  const list=qs('#sizes-list'); if(!list) return;
+  list.innerHTML=SIZES.map((s,i)=>`
+    <div style="display:flex;align-items:center;gap:5px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r-sm);padding:5px 8px">
+      <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600;flex:1">${s}</span>
+      <button onclick="moveSizeUp(${i})" ${i===0?'disabled':''} style="width:22px;height:22px;border:1px solid var(--border2);background:var(--bg3);color:${i===0?'var(--muted)':'var(--text)'};border-radius:4px;cursor:${i===0?'default':'pointer'};font-size:11px;display:flex;align-items:center;justify-content:center">↑</button>
+      <button onclick="moveSizeDown(${i})" ${i===SIZES.length-1?'disabled':''} style="width:22px;height:22px;border:1px solid var(--border2);background:var(--bg3);color:${i===SIZES.length-1?'var(--muted)':'var(--text)'};border-radius:4px;cursor:${i===SIZES.length-1?'default':'pointer'};font-size:11px;display:flex;align-items:center;justify-content:center">↓</button>
+      <button onclick="removeSize(${i})" class="del-btn">✕</button>
+    </div>`).join('');
+}
+
+function applyPreset(idx){
+  const p=allPresets()[idx];
+  if(!p) return;
+  SIZES=[...p.sizes];
+  SK_KEYS=SIZES.map(sizeToKey);
+  saveSizes(SIZES);
+  renderSizesList();
+  renderPresetsList();
+  toast(`✓ "${p.name}" uygulandı`);
+}
+
+function saveCurrentAsPreset(){
+  const inp=qs('#preset-name-inp'); if(!inp) return;
+  const name=(inp.value||'').trim();
+  if(!name){ toast('⚠️ Aralık adı girin'); return; }
+  const custom=loadPresets();
+  if([...BUILTIN_PRESETS,...custom].find(p=>p.name===name)){ toast('⚠️ Bu isim zaten var'); return; }
+  custom.push({name, sizes:[...SIZES]});
+  savePresets(custom);
+  inp.value='';
+  renderPresetsList();
+  toast(`✓ "${name}" kaydedildi`);
+}
+
+function deletePreset(customIdx){
+  const custom=loadPresets();
+  if(!custom[customIdx]) return;
+  const name=custom[customIdx].name;
+  if(!confirm(`"${name}" silinsin mi?`)) return;
+  custom.splice(customIdx,1);
+  savePresets(custom);
+  renderPresetsList();
+  toast('✓ Silindi');
+}
+
+function addSize(){
+  const inp=qs('#sz-inp'); if(!inp) return;
+  const val=(inp.value||'').trim().toUpperCase();
+  if(!val){ toast('⚠️ Beden adı girin'); return; }
+  if(SIZES.includes(val)){ toast('⚠️ Bu beden zaten var'); return; }
+  SIZES.push(val);
+  SK_KEYS=SIZES.map(sizeToKey);
+  saveSizes(SIZES);
+  inp.value='';
+  renderSizesList();
+  renderPresetsList();
+  toast('✓ Eklendi');
+}
+
+function removeSize(idx){
+  if(SIZES.length<=1){ toast('⚠️ En az 1 beden olmalı'); return; }
+  SIZES.splice(idx,1);
+  SK_KEYS=SIZES.map(sizeToKey);
+  saveSizes(SIZES);
+  renderSizesList();
+  renderPresetsList();
+  toast('✓ Silindi');
+}
+
+function moveSizeUp(idx){
+  if(idx===0) return;
+  [SIZES[idx-1],SIZES[idx]]=[SIZES[idx],SIZES[idx-1]];
+  SK_KEYS=SIZES.map(sizeToKey);
+  saveSizes(SIZES);
+  renderSizesList();
+  renderPresetsList();
+}
+
+function moveSizeDown(idx){
+  if(idx===SIZES.length-1) return;
+  [SIZES[idx+1],SIZES[idx]]=[SIZES[idx],SIZES[idx+1]];
+  SK_KEYS=SIZES.map(sizeToKey);
+  saveSizes(SIZES);
+  renderSizesList();
+  renderPresetsList();
+}
+
+function resetSizes(){
+  if(!confirm('Bedenler varsayılan listeye sıfırlanacak. Emin misiniz?')) return;
+  SIZES=[...DEFAULT_SIZES];
+  SK_KEYS=SIZES.map(sizeToKey);
+  saveSizes(SIZES);
+  renderSizesList();
+  renderPresetsList();
+  toast('✓ Sıfırlandı');
+}
+
 // ══ PRODUCT MANAGER ═══════════════════════════════════════════════════
 function showProductManager(){
   const products=loadProducts();
@@ -531,7 +713,7 @@ function showProductManager(){
       <div style="display:flex;gap:6px;margin-bottom:12px;align-items:center">
         <input id="np-inp" class="mini-input" style="flex:2" placeholder="Ürün adı..." onkeydown="if(event.key==='Enter')addProduct()">
         <input id="np-gramaj" class="mini-input" style="flex:1;max-width:80px" placeholder="g (gram)" type="number" min="0" onkeydown="if(event.key==='Enter')addProduct()">
-        <button class="btn btn-primary btn-sm" onclick="addProduct()">Ekle</button>
+        <button class="btn btn-ghost btn-sm" onclick="addProduct()">Ekle</button>
       </div>
       <div style="display:grid;grid-template-columns:1fr auto auto;gap:4px 8px;align-items:center;margin-bottom:6px;padding:0 6px">
         <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em">Ürün Adı</span>
@@ -596,13 +778,13 @@ function showNamesManager(){
       <div class="card-title" style="margin-bottom:8px">Fason Sorumlusu</div>
       <div style="display:flex;gap:8px;margin-bottom:10px">
         <input id="nf-inp" class="mini-input" style="flex:1" placeholder="İsim ekle..." onkeydown="if(event.key==='Enter')addName('fason')">
-        <button class="btn btn-primary btn-sm" onclick="addName('fason')">Ekle</button>
+        <button class="btn btn-ghost btn-sm" onclick="addName('fason')">Ekle</button>
       </div>
       <div id="fason-list">${(names.fason||[]).map((n,i)=>`<div class="name-item"><span>${n}</span><button class="del-btn" onclick="removeName('fason',${i})">✕</button></div>`).join('')}</div>
       <div class="section-divider" style="margin-top:14px"><span class="sd-label">Ütü Paketleme Sorumlusu</span></div>
       <div style="display:flex;gap:8px;margin-bottom:10px">
         <input id="nu-inp" class="mini-input" style="flex:1" placeholder="İsim ekle..." onkeydown="if(event.key==='Enter')addName('utu')">
-        <button class="btn btn-primary btn-sm" onclick="addName('utu')">Ekle</button>
+        <button class="btn btn-ghost btn-sm" onclick="addName('utu')">Ekle</button>
       </div>
       <div id="utu-list">${(names.utu||[]).map((n,i)=>`<div class="name-item"><span>${n}</span><button class="del-btn" onclick="removeName('utu',${i})">✕</button></div>`).join('')}</div>
     </div>
@@ -652,11 +834,12 @@ function renderForm(){
   const grdTotal=r.boxes.reduce((s,b)=>s+calcRowTotal(b),0);
 
   const summaryRows=[
-    {key:'siparis',label:'Sipariş Adeti',cls:'siparis-row',editable:true},
-    {key:'kesim',  label:'Kesim Adeti',  cls:'kesim-row',  editable:true},
-    {key:'yukleme',label:'Yükleme Adeti',cls:'yukleme-row',editable:true},
-    {key:'fark',   label:'Fark',         cls:'fark-row',   editable:false},
-    {key:'fark_pct',label:'Fark %',      cls:'fark-pct-row',editable:false},
+    {key:'siparis',   label:'Sipariş Adeti',  cls:'siparis-row',    editable:true},
+    {key:'kesim',     label:'Kesim Adeti',     cls:'kesim-row',      editable:true},
+    {key:'yukleme',   label:'Yükleme Adeti',   cls:'yukleme-row',    editable:true},
+    {key:'saglamUrun',label:'Sağlam Ürün',     cls:'saglamUrun-row', editable:true},
+    {key:'fark',      label:'Fark',            cls:'fark-row',       editable:false},
+    {key:'fark_pct',  label:'Fark %',          cls:'fark-pct-row',   editable:false},
   ].map(row=>{
     const rowData = r.summary[row.key] || {};
     const cells=SK_KEYS.map(k=>{
@@ -777,7 +960,7 @@ function showMultiBox(){
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal()">İptal</button>
-      <button class="btn btn-primary" onclick="applyMultiBox()">Ekle</button>
+      <button class="btn btn-ghost" onclick="applyMultiBox()">Ekle</button>
     </div>
   </div>`;
   document.body.appendChild(overlay);
@@ -848,9 +1031,10 @@ function updateBrutKg(idx, val){
 function updateSummary(rowKey,sizeKey,val){
   updateRecord(r=>{
     r.summary[rowKey][sizeKey]=val;
-    if(rowKey==='siparis') calcSiparisToplam(r);
-    if(rowKey==='kesim')   calcKesimToplam(r);
-    if(rowKey==='yukleme') calcYuklemeToplam(r);
+    if(rowKey==='siparis')    calcSiparisToplam(r);
+    if(rowKey==='kesim')      calcKesimToplam(r);
+    if(rowKey==='yukleme')    calcYuklemeToplam(r);
+    if(rowKey==='saglamUrun') calcSaglamUrunToplam(r);
     autoCalcSummary(r);
   });
   refreshSummaryDisplay();
@@ -889,11 +1073,13 @@ function refreshSummaryDisplay(){
   // siparis & kesim totals
   const st=qs('#sum-tot-siparis'); if(st) st.value=r.summary.siparis.toplam!==''?r.summary.siparis.toplam:'';
   const kt=qs('#sum-tot-kesim');   if(kt) kt.value=r.summary.kesim.toplam!==''?r.summary.kesim.toplam:'';
-  // yukleme row (row index 2, td index 0=label, 1..8=sizes, 9=toplam) — now editable
+  // yukleme row (row index 2, td index 0=label, 1..N=sizes, N+1=toplam) — editable
   const ytot=qs('#sum-tot-yukleme'); if(ytot) ytot.value=r.summary.yukleme.toplam!==''?r.summary.yukleme.toplam:'';
+  // saglamUrun row — editable
+  const sut=qs('#sum-tot-saglamUrun'); if(sut){ if(!r.summary.saglamUrun) r.summary.saglamUrun=emptyRow(); sut.value=r.summary.saglamUrun.toplam!==''?r.summary.saglamUrun.toplam:''; }
   const rows=document.querySelectorAll('.summary-table tbody tr');
-  if(rows[3]){
-    const tds=rows[3].querySelectorAll('td');
+  if(rows[4]){
+    const tds=rows[4].querySelectorAll('td');
     SK_KEYS.forEach((k,i)=>{
       if(tds[i+1]){
         const v=r.summary.fark[k];
@@ -911,9 +1097,9 @@ function refreshSummaryDisplay(){
       ftot.textContent=(ft!==''&&ft!==undefined)?ft:'—';
     }
   }
-  if(rows[4]){
-    if(!r.summary.fark_pct) r.summary.fark_pct={xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''};
-    const tds=rows[4].querySelectorAll('td');
+  if(rows[5]){
+    if(!r.summary.fark_pct) r.summary.fark_pct=emptyRow();
+    const tds=rows[5].querySelectorAll('td');
     SK_KEYS.forEach((k,i)=>{
       if(tds[i+1]){
         const v=r.summary.fark_pct[k];
@@ -945,7 +1131,7 @@ function refreshSummaryDisplay(){
   }
 }
 
-function addBox(){ updateRecord(r=>{ r.boxes.push({koli1:'',koli2:'',koliAdet:'1',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',brutKg:''}); autoKoliNumbers(r); autoCalcSummary(r); }); renderForm(); }
+function addBox(){ updateRecord(r=>{ r.boxes.push(emptyBox()); autoKoliNumbers(r); autoCalcSummary(r); }); renderForm(); }
 function removeBox(idx){ updateRecord(r=>{ r.boxes.splice(idx,1); autoKoliNumbers(r); autoCalcSummary(r); }); renderForm(); }
 function saveCurrent(){ if(!state.current) return; persist(); }
 
@@ -953,12 +1139,8 @@ function saveAndPrint(){
   saveCurrent();
   buildPrint();
   const r = state.current;
-  const brand = (r.kozanOrderNo||'').trim().replace(/\s+/g,'_');
-  const po    = (r.musteriPoNo||'').trim().replace(/\s+/g,'_');
-  let filename = 'SEVK_FİŞİ';
-  if(brand && po)       filename = brand + '_' + po;
-  else if(brand)        filename = brand;
-  else if(po)           filename = po;
+  const orderNo = (r.kozanOrderNo||'').trim();
+  const filename = orderNo ? `${orderNo} KAPANIŞ FİŞİ` : 'KAPANIŞ FİŞİ';
   const prevTitle = document.title;
   document.title = filename;
   window.print();
@@ -998,15 +1180,16 @@ function buildPrint(){
   const fmtKg = v => v ? (Number.isInteger(v)?String(v):v.toFixed(1).replace(/\.0$/,'')) : '';
 
   const sumTrs=[
-    {key:'siparis',label:'Sipariş Adeti'},
-    {key:'kesim',  label:'Kesim Adeti'},
-    {key:'yukleme',label:'Yükleme Adeti'},
-    {key:'fark',   label:'Fark'},
-    {key:'fark_pct',label:'Fark %'},
+    {key:'siparis',   label:'Sipariş Adeti'},
+    {key:'kesim',     label:'Kesim Adeti'},
+    {key:'yukleme',   label:'Yükleme Adeti'},
+    {key:'saglamUrun',label:'Sağlam Ürün'},
+    {key:'fark',      label:'Fark'},
+    {key:'fark_pct',  label:'Fark %'},
   ].map(rd=>`<tr>
     <td class="row-lbl">${rd.label}</td>
     ${SK_KEYS.map(k=>{
-      const src = rd.key==='fark_pct' ? (r.summary.fark_pct||{}) : r.summary[rd.key];
+      const src = rd.key==='fark_pct' ? (r.summary.fark_pct||{}) : (r.summary[rd.key]||{});
       const v=src[k];
       if(rd.key==='fark'){
         return `<td>${(v!==''&&v!==undefined)?v:''}</td>`;
