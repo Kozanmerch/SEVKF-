@@ -71,7 +71,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .summary-table tr.kesim-row td{background:rgba(245,158,11,0.05);}
 .summary-table tr.yukleme-row td{background:rgba(34,197,94,0.05);}
 .summary-table tr.saglamUrun-row td{background:rgba(34,197,94,0.05);}
-.summary-table tr.kalanSaglamUrun-row td{background:rgba(34,197,94,0.12);}
+.summary-table tr.kalanSaglamUrun-row td{background:rgba(34,197,94,0.08);}
+.summary-table tr.ikiKaliteSaglamUrun-row td{background:rgba(245,158,11,0.08);}
 .summary-table tr.fark-row td{background:rgba(239,68,68,0.04);}
 .summary-table tr.fark-pct-row td{background:rgba(239,68,68,0.08);}
 /* TOAST */
@@ -373,8 +374,12 @@ function autoCalcSummary(r){
   calcSiparisToplam(r);
   // recalc saglamUrun toplam
   calcSaglamUrunToplam(r);
-  // recalc kalanSaglamUrun toplam
+  // recalc kalanSaglamUrun (1. Kalite) toplam
   calcKalanSaglamUrunToplam(r);
+  // recalc ikiKaliteSaglamUrun (2. Kalite) toplam
+  calcIkiKaliteSaglamUrunToplam(r);
+  // recalc saglamUrunToplam (sum of 1. + 2. Kalite)
+  calcSaglamUrunGenel(r);
   const totalSip=parseInt(r.summary.siparis.toplam)||0;
   let totalF=0;
   let anyEntered=false;
@@ -424,6 +429,18 @@ function calcSiparisToplam(r){ r.summary.siparis.toplam=SK_KEYS.reduce((s,k)=>s+
 function calcKesimToplam(r){   r.summary.kesim.toplam  =SK_KEYS.reduce((s,k)=>s+(parseInt(r.summary.kesim[k])||0),0)||''; }
 function calcSaglamUrunToplam(r){ if(!r.summary.saglamUrun) r.summary.saglamUrun=emptyRow(); r.summary.saglamUrun.toplam=SK_KEYS.reduce((s,k)=>s+(parseInt(r.summary.saglamUrun[k])||0),0)||''; }
 function calcKalanSaglamUrunToplam(r){ if(!r.summary.kalanSaglamUrun) r.summary.kalanSaglamUrun=emptyRow(); r.summary.kalanSaglamUrun.toplam=SK_KEYS.reduce((s,k)=>s+(parseInt(r.summary.kalanSaglamUrun[k])||0),0)||''; }
+function calcIkiKaliteSaglamUrunToplam(r){ if(!r.summary.ikiKaliteSaglamUrun) r.summary.ikiKaliteSaglamUrun=emptyRow(); r.summary.ikiKaliteSaglamUrun.toplam=SK_KEYS.reduce((s,k)=>s+(parseInt(r.summary.ikiKaliteSaglamUrun[k])||0),0)||''; }
+function calcSaglamUrunGenel(r){
+  if(!r.summary.saglamUrunToplam) r.summary.saglamUrunToplam=emptyRow();
+  SK_KEYS.forEach(k=>{
+    const a=parseInt((r.summary.kalanSaglamUrun||{})[k])||0;
+    const b=parseInt((r.summary.ikiKaliteSaglamUrun||{})[k])||0;
+    r.summary.saglamUrunToplam[k]=(a||b)?a+b:'';
+  });
+  const a=parseInt(r.summary.kalanSaglamUrun.toplam)||0;
+  const b=parseInt(r.summary.ikiKaliteSaglamUrun.toplam)||0;
+  r.summary.saglamUrunToplam.toplam=(a||b)?a+b:'';
+}
 
 function newRecord(){
   return {
@@ -434,13 +451,15 @@ function newRecord(){
     errors:{baski:'',kumas:'',leke:'',renkFarki:'',aksesuar:'',digerHatalar:''},
     boxes:[emptyBox(),emptyBox(),emptyBox()],
     summary:{
-      siparis:        emptyRow(),
-      kesim:          emptyRow(),
-      yukleme:        emptyRow(),
-      saglamUrun:     emptyRow(),
-      kalanSaglamUrun:emptyRow(),
-      fark:           emptyRow(),
-      fark_pct:       emptyRow(),
+      siparis:             emptyRow(),
+      kesim:               emptyRow(),
+      yukleme:             emptyRow(),
+      saglamUrun:          emptyRow(),
+      kalanSaglamUrun:     emptyRow(),
+      ikiKaliteSaglamUrun: emptyRow(),
+      saglamUrunToplam:    emptyRow(),
+      fark:                emptyRow(),
+      fark_pct:            emptyRow(),
     },
     aciklama:'', fasonSorumlu:'', utuSorumlu:'',
   };
@@ -919,7 +938,7 @@ function renderForm(){
     </div>
 
     <div class="card">
-      <div class="card-title">Kalan Sağlam Ürünler</div>
+      <div class="card-title">Sağlam Ürünler</div>
       <div class="box-table-wrapper">
         <table class="summary-table">
           <thead><tr>
@@ -928,14 +947,28 @@ function renderForm(){
             <th>Toplam</th>
           </tr></thead>
           <tbody>${(()=>{
-            const rowData = r.summary.kalanSaglamUrun || {};
-            const cells = SK_KEYS.map(k => {
-              const v = rowData[k];
-              return `<td><input value="${v||''}" oninput="updateSummary('kalanSaglamUrun','${k}',this.value)"></td>`;
-            }).join('');
-            const tot = rowData.toplam;
-            const totTd = `<td class="total-cell"><input class="auto-val" id="sum-tot-kalanSaglamUrun" value="${tot!==''&&tot!==undefined?tot:''}" readonly tabindex="-1"></td>`;
-            return `<tr class="kalanSaglamUrun-row"><td class="label-cell">Kalan Sağlam Ürünler</td>${cells}${totTd}</tr>`;
+            const buildRow = (key, label, cls) => {
+              const rowData = r.summary[key] || {};
+              const cells = SK_KEYS.map(k => {
+                const v = rowData[k];
+                return `<td><input value="${v||''}" oninput="updateSummary('${key}','${k}',this.value)"></td>`;
+              }).join('');
+              const tot = rowData.toplam;
+              const totTd = `<td class="total-cell"><input class="auto-val" id="sum-tot-${key}" value="${tot!==''&&tot!==undefined?tot:''}" readonly tabindex="-1"></td>`;
+              return `<tr class="${cls}"><td class="label-cell">${label}</td>${cells}${totTd}</tr>`;
+            };
+            const buildTotalRow = () => {
+              const rowData = r.summary.saglamUrunToplam || {};
+              const cells = SK_KEYS.map(k => {
+                const v = rowData[k];
+                return `<td class="total-cell" style="font-weight:600">${v!==''&&v!==undefined?v:''}</td>`;
+              }).join('');
+              const tot = rowData.toplam;
+              return `<tr style="background:rgba(34,197,94,0.18);font-weight:700"><td class="label-cell">Toplam</td>${cells}<td class="total-cell" style="font-weight:700" id="sum-tot-saglamUrunToplam">${tot!==''&&tot!==undefined?tot:''}</td></tr>`;
+            };
+            return buildRow('kalanSaglamUrun','1. Kalite','kalanSaglamUrun-row')
+                 + buildRow('ikiKaliteSaglamUrun','2. Kalite','ikiKaliteSaglamUrun-row')
+                 + buildTotalRow();
           })()}</tbody>
         </table>
       </div>
@@ -1060,10 +1093,11 @@ function updateSummary(rowKey,sizeKey,val){
   updateRecord(r=>{
     r.summary[rowKey][sizeKey]=val;
     if(rowKey==='siparis')    calcSiparisToplam(r);
-    if(rowKey==='kesim')            calcKesimToplam(r);
-    if(rowKey==='yukleme')          calcYuklemeToplam(r);
-    if(rowKey==='saglamUrun')       calcSaglamUrunToplam(r);
-    if(rowKey==='kalanSaglamUrun')  calcKalanSaglamUrunToplam(r);
+    if(rowKey==='kesim')                calcKesimToplam(r);
+    if(rowKey==='yukleme')              calcYuklemeToplam(r);
+    if(rowKey==='saglamUrun')           calcSaglamUrunToplam(r);
+    if(rowKey==='kalanSaglamUrun')      { calcKalanSaglamUrunToplam(r); calcSaglamUrunGenel(r); }
+    if(rowKey==='ikiKaliteSaglamUrun')  { calcIkiKaliteSaglamUrunToplam(r); calcSaglamUrunGenel(r); }
     autoCalcSummary(r);
   });
   refreshSummaryDisplay();
@@ -1104,8 +1138,12 @@ function refreshSummaryDisplay(){
   const kt=qs('#sum-tot-kesim');   if(kt) kt.value=r.summary.kesim.toplam!==''?r.summary.kesim.toplam:'';
   // yukleme row — editable
   const ytot=qs('#sum-tot-yukleme'); if(ytot) ytot.value=r.summary.yukleme.toplam!==''?r.summary.yukleme.toplam:'';
-  // kalanSaglamUrun row — editable (separate table, identified by ID)
+  // kalanSaglamUrun (1. Kalite) — editable, separate table
   const ksut=qs('#sum-tot-kalanSaglamUrun'); if(ksut){ if(!r.summary.kalanSaglamUrun) r.summary.kalanSaglamUrun=emptyRow(); ksut.value=r.summary.kalanSaglamUrun.toplam!==''?r.summary.kalanSaglamUrun.toplam:''; }
+  // ikiKaliteSaglamUrun (2. Kalite) — editable, separate table
+  const ik2=qs('#sum-tot-ikiKaliteSaglamUrun'); if(ik2){ if(!r.summary.ikiKaliteSaglamUrun) r.summary.ikiKaliteSaglamUrun=emptyRow(); ik2.value=r.summary.ikiKaliteSaglamUrun.toplam!==''?r.summary.ikiKaliteSaglamUrun.toplam:''; }
+  // saglamUrunToplam — read-only sum row
+  const sgt=qs('#sum-tot-saglamUrunToplam'); if(sgt){ calcSaglamUrunGenel(r); const t=r.summary.saglamUrunToplam.toplam; sgt.textContent=t!==''&&t!==undefined?t:''; }
   const rows=document.querySelectorAll('.summary-table tbody tr');
   if(rows[3]){
     const tds=rows[3].querySelectorAll('td');
@@ -1292,19 +1330,31 @@ function buildPrint(){
       <tbody>${sumTrs}</tbody>
     </table>
 
-    <!-- KALAN SAĞLAM ÜRÜNLER -->
-    <div class="pr-bar">KALAN SAĞLAM ÜRÜNLER</div>
+    <!-- SAĞLAM ÜRÜNLER -->
+    <div class="pr-bar">SAĞLAM ÜRÜNLER</div>
     <table class="pr-sum">
       <thead><tr>
         <th style="text-align:left;width:90px">Tür</th>
         ${SIZES.map(s=>`<th>${s}</th>`).join('')}
         <th>Toplam</th>
       </tr></thead>
-      <tbody><tr>
-        <td class="row-lbl">Kalan Sağlam Ürünler</td>
-        ${SK_KEYS.map(k=>`<td>${(r.summary.kalanSaglamUrun||{})[k]||''}</td>`).join('')}
-        <td class="bold-t">${(r.summary.kalanSaglamUrun||{}).toplam||''}</td>
-      </tr></tbody>
+      <tbody>
+        <tr>
+          <td class="row-lbl">1. Kalite</td>
+          ${SK_KEYS.map(k=>`<td>${(r.summary.kalanSaglamUrun||{})[k]||''}</td>`).join('')}
+          <td class="bold-t">${(r.summary.kalanSaglamUrun||{}).toplam||''}</td>
+        </tr>
+        <tr>
+          <td class="row-lbl">2. Kalite</td>
+          ${SK_KEYS.map(k=>`<td>${(r.summary.ikiKaliteSaglamUrun||{})[k]||''}</td>`).join('')}
+          <td class="bold-t">${(r.summary.ikiKaliteSaglamUrun||{}).toplam||''}</td>
+        </tr>
+        <tr style="font-weight:700;background:rgba(34,197,94,0.12)">
+          <td class="row-lbl">Toplam</td>
+          ${SK_KEYS.map(k=>`<td>${(r.summary.saglamUrunToplam||{})[k]||''}</td>`).join('')}
+          <td class="bold-t">${(r.summary.saglamUrunToplam||{}).toplam||''}</td>
+        </tr>
+      </tbody>
     </table>
 
     <!-- ACIKLAMA -->
