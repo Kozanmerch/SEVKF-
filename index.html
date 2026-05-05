@@ -191,8 +191,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 const SK_RECORDS  = 'kozan_sevk_v3';
 const SK_NAMES    = 'kozan_names_v1';
 const SK_PRODUCTS = 'kozan_products_v1';
-const SIZES   = ['XS','S','M','L','XL','2XL','3XL','4XL'];
-const SK_KEYS = ['xs','s','m','l','xl','xxl','xxxl','xxxxl'];
+const SIZES   = ['XXS','XS','S','M','L','XL','2XL','3XL','4XL'];
+const SK_KEYS = ['xxs','xs','s','m','l','xl','xxl','xxxl','xxxxl'];
 
 let uiLang = 'tr';
 const TR = {
@@ -380,7 +380,7 @@ function autoCalcSummary(r){
   // update eksik adet from summary totals
   calcEksikAdet(r);
   // calc fark % = yukleme / siparis * 100
-  if(!r.summary.fark_pct) r.summary.fark_pct={xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''};
+  if(!r.summary.fark_pct) r.summary.fark_pct={xxs:'',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''};
   let anyPct=false;
   SK_KEYS.forEach(k=>{
     const sip=parseInt(r.summary.siparis[k]);
@@ -415,16 +415,16 @@ function newRecord(){
     ikiKaliteAdeti:'', eksikAdet:'',
     errors:{baski:'',kumas:'',leke:'',renkFarki:'',aksesuar:'',digerHatalar:''},
     boxes:[
-      {koli1:'',koli2:'',koliAdet:'1',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',brutKg:''},
-      {koli1:'',koli2:'',koliAdet:'1',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',brutKg:''},
-      {koli1:'',koli2:'',koliAdet:'1',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',brutKg:''},
+      {koli1:'',koli2:'',koliAdet:'1',xxs:'',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',brutKg:''},
+      {koli1:'',koli2:'',koliAdet:'1',xxs:'',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',brutKg:''},
+      {koli1:'',koli2:'',koliAdet:'1',xxs:'',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',brutKg:''},
     ],
     summary:{
-      siparis:{xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''},
-      kesim:  {xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''},
-      yukleme:{xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''},
-      fark:   {xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''},
-      fark_pct:{xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''},
+      siparis:{xxs:'',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''},
+      kesim:  {xxs:'',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''},
+      yukleme:{xxs:'',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''},
+      fark:   {xxs:'',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''},
+      fark_pct:{xxs:'',xs:'',s:'',m:'',l:'',xl:'',xxl:'',xxxl:'',xxxxl:'',toplam:''},
     },
     aciklama:'', fasonSorumlu:'', utuSorumlu:'',
   };
