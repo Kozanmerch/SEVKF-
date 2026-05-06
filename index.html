@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Kozan Textile · Sevk Fişi</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root {
   --bg:#0d0f14; --bg2:#161a22; --bg3:#1e2330; --surface:#242938;
@@ -106,17 +108,106 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
 /* ═══════════════════════════════ PRINT ═══════════════════════════ */
 @media print {
-  body{background:#fff;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  .app>*:not(#print-area){display:none!important;}
-  #print-area{display:block!important;}
-  .no-print{display:none!important;}
-  @page{margin:7mm;size:A4 portrait;}
-  .pr{padding-bottom:90px;}
-  .pr-footer-wrap{position:fixed;bottom:0;left:0;right:0;background:#fff;padding:0 7mm 4mm;}
-  img{-webkit-print-color-adjust:exact;print-color-adjust:exact;max-width:100%;}
+
+  /* Reset */
+  html, body {
+    height: auto !important;
+    margin: 0;
+    padding: 0;
+  }
+
+  body{
+    background:#fff;
+    color:#111;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+  }
+
+  /* Show only print area */
+  .app>*:not(#print-area){
+    display:none!important;
+  }
+
+  #print-area{
+    display:block!important;
+  }
+
+  .no-print{
+    display:none!important;
+  }
+
+  /* Page setup */
+  @page{
+    margin:5mm;              /* 🔥 reduced from 7mm */
+    size:A4 portrait;
+  }
+
+  /* Main container */
+  .pr{
+    padding-bottom:5px;      /* 🔥 reduced (prevents 2nd page) */
+    page-break-after:avoid;
+    page-break-inside:avoid;
+  }
+
+  /* Tables & sections should not split */
+  .pr-koli,
+  .pr-sum,
+  .pr-meta,
+  .pr-qty,
+  .pr-sig,
+  .pr-notes-wrap{
+    page-break-inside:avoid;
+  }
+
+  /* Signature + footer pinned to bottom of page */
+  .pr-footer-wrap{
+    position:fixed;
+    bottom:0;
+    left:5mm;
+    right:5mm;
+    background:#fff;
+    padding:0 0 3mm;
+  }
+
+  /* Add bottom padding to main content so it doesn't slide under the fixed footer */
+  .pr{
+    padding-bottom:55mm;
+  }
+
+  /* Images */
+  img{
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+    max-width:100%;
+  }
 }
-#print-area{display:none;}
-.pr{font-family:'Arial',sans-serif;font-size:9.5px;color:#111;background:#fff;}
+
+/* Hide print area on screen normally */
+#print-area{
+  display:none;
+  color:#111;
+  background:#fff;
+}
+
+/* Print typography */
+.pr{
+  font-family:'Arial',sans-serif;
+  font-size:9.5px;
+  color:#111;
+  background:#fff;
+  width:794px;
+  min-height:1082px; /* A4 at 96dpi (297mm) minus 10mm margins ≈ 1082px */
+  display:flex;
+  flex-direction:column;
+  box-sizing:border-box;
+}
+
+/* Footer always pushed to bottom */
+.pr-footer-wrap{
+  margin-top:auto;
+  background:#fff;
+  padding-top:6px;
+}
 
 /* Print header */
 .pr-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:5px;padding-bottom:5px;border-bottom:2px solid #111;}
@@ -227,8 +318,15 @@ const state = { screen:'dashboard', current:null, records:[] };
 function updateRecord(fn){
   if(!state.current) return;
   fn(state.current);
+
+  // 🔥 ADD THIS
+  if(state.current.kozanOrderNo){
+    state.current.id = state.current.kozanOrderNo;
+  }
+
   const idx = state.records.findIndex(r=>r.id===state.current.id);
   if(idx>=0) state.records[idx]=state.current;
+
   persist();
 }
 
@@ -444,11 +542,24 @@ function calcSaglamUrunGenel(r){
 
 function newRecord(){
   return {
-    id:'SF-'+Date.now(), createdAt:new Date().toISOString(),
-    tarih:today(), kozanOrderNo:'', musteriPoNo:'', modelAdi:'', tip:'', gramaj:0,
-    renk:'', kesimAdeti:'', dikimSevkAdeti:'', dikimIadeAdeti:'', saglamUrunAdeti:'',
-    ikiKaliteAdeti:'', eksikAdet:'',
-    errors:{baski:'',kumas:'',leke:'',renkFarki:'',atölye:'',digerHatalar:''},
+    id:'', // 🔥 now will be set from Kozan Order No
+    createdAt:new Date().toISOString(),
+
+    tarih:today(),
+    kozanOrderNo:'',
+    musteriPoNo:'',
+    modelAdi:'',
+    tip:'',
+    gramaj:0,
+
+    renk:'',
+    kesimAdeti:'',
+    dikimSevkAdeti:'',
+    dikimIadeAdeti:'',
+    saglamUrunAdeti:'',
+    ikiKaliteAdeti:'',
+    eksikAdet:'',
+    errors:{baski:'',kumas:'',leke:'',renkFarki:'',aksesuar:'',digerHatalar:''},
     boxes:[emptyBox(),emptyBox(),emptyBox()],
     summary:{
       siparis:             emptyRow(),
@@ -461,7 +572,9 @@ function newRecord(){
       fark:                emptyRow(),
       fark_pct:            emptyRow(),
     },
-    aciklama:'', fasonSorumlu:'', utuSorumlu:'',
+    aciklama:'',
+    fasonSorumlu:(function(){ const n=loadNames(); return (n.fason&&n.fason[0])||''; })(),
+    utuSorumlu:  (function(){ const n=loadNames(); return (n.utu  &&n.utu[0])  ||''; })(),
   };
 }
 
@@ -918,7 +1031,7 @@ function renderForm(){
       </div>
       <div class="grid-3">
         <div class="field"><label>Renk Farkı</label><input value="${r.errors.renkFarki||''}" placeholder=" " oninput="updateError('renkFarki',this.value)"></div>
-        <div class="field"><label>Atölye Hatası</label><input value="${r.errors.Atölye||''}" placeholder=" " oninput="updateError('Atölye',this.value)"></div>
+        <div class="field"><label>Aksesuar Hatası</label><input value="${r.errors.aksesuar||''}" placeholder=" " oninput="updateError('aksesuar',this.value)"></div>
         <div class="field"><label>Diğer Hatalar</label><input value="${r.errors.digerHatalar||''}" placeholder=" " oninput="updateError('digerHatalar',this.value)"></div>
       </div>
     </div>
@@ -994,7 +1107,7 @@ function renderForm(){
       <button class="btn btn-ghost" onclick="showDashboard()">← Vazgeç</button>
       <div style="display:flex;gap:8px">
         <button class="btn btn-ghost" onclick="saveCurrent()">💾 Kaydet</button>
-        <button class="btn btn-ghost" onclick="saveAndPrint()">🖨️ Kaydet & Yazdır</button>
+        <button class="btn btn-ghost" onclick="downloadPDF()">📥 PDF İndir</button>
       </div>
     </div>
   `);
@@ -1203,15 +1316,90 @@ function removeBox(idx){ updateRecord(r=>{ r.boxes.splice(idx,1); autoKoliNumber
 function saveCurrent(){ if(!state.current) return; persist(); }
 
 function saveAndPrint(){
+  downloadPDF();
+}
+
+function downloadPDF(){
   saveCurrent();
   buildPrint();
+
   const r = state.current;
-  const orderNo = (r.kozanOrderNo||'').trim();
-  const filename = orderNo ? `${orderNo} KAPANIŞ FİŞİ` : 'KAPANIŞ FİŞİ';
-  const prevTitle = document.title;
-  document.title = filename;
-  window.print();
-  document.title = prevTitle;
+  const kozanNo = (r && r.kozanOrderNo && r.kozanOrderNo.trim()) ? r.kozanOrderNo.trim() : 'sevk';
+  const el = document.getElementById('print-area');
+
+  // Make visible off-screen so html2canvas can render it
+  el.style.cssText = 'display:block;position:fixed;left:-9999px;top:0;width:794px;background:#fff;z-index:-1;';
+
+  // Show loading toast
+  toast('⏳ PDF hazırlanıyor…', 8000);
+
+  html2canvas(el, {
+    scale: 2,
+    useCORS: true,
+    logging: false,
+    backgroundColor: '#ffffff',
+    width: 794,
+    windowWidth: 794
+  }).then(function(canvas) {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+
+    const pageW = pdf.internal.pageSize.getWidth();   // 210mm
+    const pageH = pdf.internal.pageSize.getHeight();  // 297mm
+    const margin = 5;
+    const contentW = pageW - margin * 2;
+    const contentH = pageH - margin * 2;
+
+    const imgData = canvas.toDataURL('image/jpeg', 0.97);
+    const canvasW = canvas.width;
+    const canvasH = canvas.height;
+
+    // Scale canvas to fit page width
+    const ratio = contentW / (canvasW / 2); // /2 because scale:2
+    const totalImgH = (canvasH / 2) * ratio;
+
+    // Split into pages if content is taller than one page
+    let yOffset = 0;
+    let pageNum = 0;
+    while (yOffset < totalImgH) {
+      if (pageNum > 0) pdf.addPage();
+
+      // Source slice in canvas pixels
+      const srcY = (yOffset / ratio) * 2;
+      const srcH = (contentH / ratio) * 2;
+
+      // Draw just this slice
+      const sliceCanvas = document.createElement('canvas');
+      sliceCanvas.width = canvasW;
+      sliceCanvas.height = Math.min(srcH, canvasH - srcY);
+      const ctx = sliceCanvas.getContext('2d');
+      ctx.drawImage(canvas, 0, srcY, canvasW, sliceCanvas.height, 0, 0, canvasW, sliceCanvas.height);
+
+      const sliceH = (sliceCanvas.height / 2) * ratio;
+      pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.97), 'JPEG', margin, margin, contentW, sliceH);
+
+      yOffset += contentH;
+      pageNum++;
+    }
+
+    // Build a clean named download — avoids double-file issue on some browsers
+    const pdfBlob = pdf.output('blob');
+    const url = URL.createObjectURL(pdfBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = kozanNo + '.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 5000);
+
+    // Restore hidden state
+    el.style.cssText = '';
+  }).catch(function(err) {
+    console.error('PDF error:', err);
+    toast('❌ PDF oluşturulamadı');
+    el.style.cssText = '';
+  });
 }
 
 // ══ PRINT BUILD ════════════════════════════════════════════════════════
@@ -1311,7 +1499,7 @@ function buildPrint(){
       <tr>
         <td><span class="pm-label">Kesim Adeti</span><span class="pm-val">${dash(r.kesimAdeti)}</span></td>
         <td><span class="pm-label">Eksik Adet</span><span class="pm-val">${(()=>{ const v=calcEksikAdet(r); return (v!==''&&v!==undefined)?v:'—'; })()}</span></td>
-        <td><span class="pm-label">Atölye Hatası</span><span class="pm-val">${dash(r.errors.Atölye)}</span></td>
+        <td><span class="pm-label">Aksesuar Hatası</span><span class="pm-val">${dash(r.errors.aksesuar)}</span></td>
       </tr>
       <tr>
         <td><span class="pm-label">Ürün Türü</span><span class="pm-val">${dash(r.tip)}</span></td>
