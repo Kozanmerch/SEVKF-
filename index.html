@@ -559,7 +559,7 @@ function newRecord(){
     saglamUrunAdeti:'',
     ikiKaliteAdeti:'',
     eksikAdet:'',
-    errors:{baski:'',kumas:'',leke:'',renkFarki:'',Atölye:'',digerHatalar:''},
+    errors:{baski:'',kumas:'',leke:'',renkFarki:'',aksesuar:'',digerHatalar:''},
     boxes:[emptyBox(),emptyBox(),emptyBox()],
     summary:{
       siparis:             emptyRow(),
@@ -1031,7 +1031,7 @@ function renderForm(){
       </div>
       <div class="grid-3">
         <div class="field"><label>Renk Farkı</label><input value="${r.errors.renkFarki||''}" placeholder=" " oninput="updateError('renkFarki',this.value)"></div>
-        <div class="field"><label>Atölye Hatası</label><input value="${r.errors.Atölye||''}" placeholder=" " oninput="updateError('Atölye',this.value)"></div>
+        <div class="field"><label>Atölye Hatası</label><input value="${r.errors.aksesuar||''}" placeholder=" " oninput="updateError('aksesuar',this.value)"></div>
         <div class="field"><label>Diğer Hatalar</label><input value="${r.errors.digerHatalar||''}" placeholder=" " oninput="updateError('digerHatalar',this.value)"></div>
       </div>
     </div>
@@ -1499,7 +1499,7 @@ function buildPrint(){
       <tr>
         <td><span class="pm-label">Kesim Adeti</span><span class="pm-val">${dash(r.kesimAdeti)}</span></td>
         <td><span class="pm-label">Eksik Adet</span><span class="pm-val">${(()=>{ const v=calcEksikAdet(r); return (v!==''&&v!==undefined)?v:'—'; })()}</span></td>
-        <td><span class="pm-label">Atölye Hatası</span><span class="pm-val">${dash(r.errors.Atölye)}</span></td>
+        <td><span class="pm-label">Atölye Hatası</span><span class="pm-val">${dash(r.errors.aksesuar)}</span></td>
       </tr>
       <tr>
         <td><span class="pm-label">Ürün Türü</span><span class="pm-val">${dash(r.tip)}</span></td>
