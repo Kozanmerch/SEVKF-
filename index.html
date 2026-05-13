@@ -138,13 +138,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
   /* Page setup */
   @page{
-    margin:5mm;              
+    margin:5mm;              /* 🔥 reduced from 7mm */
     size:A4 portrait;
   }
 
   /* Main container */
   .pr{
-    padding-bottom:5px;      
+    padding-bottom:5px;      /* 🔥 reduced (prevents 2nd page) */
     page-break-after:avoid;
     page-break-inside:avoid;
   }
@@ -192,7 +192,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 /* Print typography */
 .pr{
   font-family:'Arial',sans-serif;
-  font-size:11px;
+  font-size:9.5px;
   color:#111;
   background:#fff;
   width:794px;
@@ -223,21 +223,21 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .pr-meta{width:100%;border-collapse:collapse;margin-bottom:3px;}
 .pr-meta td{border:1px solid #999;padding:0px 4px;vertical-align:top;word-wrap:break-word;overflow-wrap:break-word;white-space:normal;}
 .pr-meta .pm-label{font-size:7px;color:#777;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:1px;}
-.pr-meta .pm-val{font-size:12px;font-weight:700;}
+.pr-meta .pm-val{font-size:9.5px;font-weight:700;}
 
 /* Print qty/error row */
 .pr-qty{width:100%;border-collapse:collapse;margin-bottom:3px;}
 .pr-qty td{border:1px solid #999;padding:2px 5px;text-align:center;vertical-align:top;}
 .pr-qty .pm-label{font-size:7px;color:#777;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:1px;}
-.pr-qty .pm-val{font-size:12px;font-weight:700;}
+.pr-qty .pm-val{font-size:9.5px;font-weight:700;}
 
 /* Print section bar */
-.pr-bar{background:#e0e0e0;border:1px solid #999;border-bottom:none;padding:2px 5px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#222;margin-top:4px;}
+.pr-bar{background:#e0e0e0;border:1px solid #999;border-bottom:none;padding:2px 5px;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#222;margin-top:4px;}
 
 /* Print koli table */
 .pr-koli{width:100%;border-collapse:collapse;margin-bottom:3px;}
-.pr-koli th{background:#d8d8d8;border:1px solid #555;padding:2px 4px;font-size:9.5px;font-weight:700;text-align:center;text-transform:uppercase;}
-.pr-koli td{border:1px solid #555;padding:2px 4px;font-size:10.5px;text-align:center;font-family:'Courier New',monospace;}
+.pr-koli th{background:#d8d8d8;border:1px solid #555;padding:2px 4px;font-size:8px;font-weight:700;text-align:center;text-transform:uppercase;}
+.pr-koli td{border:1px solid #555;padding:2px 4px;font-size:9px;text-align:center;font-family:'Courier New',monospace;}
 .pr-koli td.lt{text-align:left;font-size:8px;}
 .pr-koli tr.pr-gr td{background:#e8e8e8;font-weight:700;border:1px solid #555;}
 .pr-koli tr.pr-empty td{height:13px;border:1px solid #555;}
@@ -245,12 +245,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 /* Print summary table */
 .pr-sum{width:100%;border-collapse:collapse;margin-bottom:3px;}
 .pr-sum th{background:#d8d8d8;border:1px solid #999;padding:2px 4px;font-size:8px;font-weight:700;text-align:center;text-transform:uppercase;}
-.pr-sum td{border:1px solid #bbb;padding:2px 5px;font-size:12px;text-align:center;font-family:'Courier New',monospace;}
+.pr-sum td{border:1px solid #bbb;padding:2px 5px;font-size:9px;text-align:center;font-family:'Courier New',monospace;}
 .pr-sum td.row-lbl{text-align:left;font-family:'Arial',sans-serif;font-size:8.5px;color:#333;font-weight:600;}
 .pr-sum td.bold-t{font-weight:700;}
 
 /* Print notes */
-.pr-notes-wrap{border:1px solid #999;padding:5px 7px;min-height:32px;margin-bottom:3px;font-size:10px;}
+.pr-notes-wrap{border:1px solid #999;padding:5px 7px;min-height:32px;margin-bottom:3px;font-size:9px;}
 .pr-notes-lbl{font-size:7px;text-transform:uppercase;letter-spacing:0.06em;color:#777;margin-bottom:2px;}
 
 /* Print sig */
@@ -549,6 +549,7 @@ function newRecord(){
     kozanOrderNo:'',
     musteriPoNo:'',
     modelAdi:'',
+    numune:'',
     tip:'',
     gramaj:0,
 
@@ -1005,12 +1006,15 @@ function renderForm(){
       </div>
       <div class="grid-2">
         <div class="field"><label>Model Adı</label><input id="f-modeladi" value="${r.modelAdi||''}" placeholder=" " oninput="updateField('modelAdi',this.value)"></div>
+        <div class="field"><label>Numune</label><input value="${r.numune||''}" placeholder=" " oninput="updateField('numune',this.value)"></div>
+      </div>
+      <div class="grid-2">
         <div class="field"><label>Ürün Tipi</label>
           <select oninput="updateField('tip',this.value);updateField('gramaj',getProductGramaj(this.value));renderForm()">${prodOpts}</select>
         </div>
+        <div class="field"><label>Renk</label><input value="${r.renk||''}" placeholder=" " oninput="updateField('renk',this.value)"></div>
       </div>
       <div class="grid-2">
-        <div class="field"><label>Renk</label><input value="${r.renk||''}" placeholder=" " oninput="updateField('renk',this.value)"></div>
         <div class="field"><label>Kesim Adeti</label><input type="number" value="${r.kesimAdeti||''}" placeholder=" " oninput="updateField('kesimAdeti',this.value)"></div>
       </div>
       <div class="section-divider"><span class="sd-label">Adet Bilgileri</span></div>
@@ -1031,7 +1035,7 @@ function renderForm(){
       </div>
       <div class="grid-3">
         <div class="field"><label>Renk Farkı</label><input value="${r.errors.renkFarki||''}" placeholder=" " oninput="updateError('renkFarki',this.value)"></div>
-        <div class="field"><label>Atölye Hatası</label><input value="${r.errors.aksesuar||''}" placeholder=" " oninput="updateError('aksesuar',this.value)"></div>
+        <div class="field"><label>Aksesuar Hatası</label><input value="${r.errors.aksesuar||''}" placeholder=" " oninput="updateError('aksesuar',this.value)"></div>
         <div class="field"><label>Diğer Hatalar</label><input value="${r.errors.digerHatalar||''}" placeholder=" " oninput="updateError('digerHatalar',this.value)"></div>
       </div>
     </div>
@@ -1492,18 +1496,19 @@ function buildPrint(){
         <td><span class="pm-label">Leke</span><span class="pm-val">${dash(r.errors.leke)}</span></td>
       </tr>
       <tr>
-        <td><span class="pm-label">Renk</span><span class="pm-val">${dash(r.renk)}</span></td>
+        <td><span class="pm-label">Numune</span><span class="pm-val">${dash(r.numune)}</span></td>
         <td><span class="pm-label">2. Kalite Adeti</span><span class="pm-val">${dash(r.ikiKaliteAdeti)}</span></td>
         <td><span class="pm-label">Renk Farkı</span><span class="pm-val">${dash(r.errors.renkFarki)}</span></td>
       </tr>
       <tr>
-        <td><span class="pm-label">Kesim Adeti</span><span class="pm-val">${dash(r.kesimAdeti)}</span></td>
+        <td><span class="pm-label">Renk</span><span class="pm-val">${dash(r.renk)}</span></td>
         <td><span class="pm-label">Eksik Adet</span><span class="pm-val">${(()=>{ const v=calcEksikAdet(r); return (v!==''&&v!==undefined)?v:'—'; })()}</span></td>
-        <td><span class="pm-label">Atölye Hatası</span><span class="pm-val">${dash(r.errors.aksesuar)}</span></td>
+        <td><span class="pm-label">Aksesuar Hatası</span><span class="pm-val">${dash(r.errors.aksesuar)}</span></td>
       </tr>
       <tr>
+        <td><span class="pm-label">Kesim Adeti</span><span class="pm-val">${dash(r.kesimAdeti)}</span></td>
         <td><span class="pm-label">Ürün Türü</span><span class="pm-val">${dash(r.tip)}</span></td>
-        <td colspan="2"><span class="pm-label">Diğer Hatalar</span><span class="pm-val">${dash(r.errors.digerHatalar)}</span></td>
+        <td><span class="pm-label">Diğer Hatalar</span><span class="pm-val">${dash(r.errors.digerHatalar)}</span></td>
       </tr>
     </table>
 
