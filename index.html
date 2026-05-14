@@ -1006,13 +1006,13 @@ function renderForm(){
       </div>
       <div class="grid-2">
         <div class="field"><label>Model Adı</label><input id="f-modeladi" value="${r.modelAdi||''}" placeholder=" " oninput="updateField('modelAdi',this.value)"></div>
-        <div class="field"><label>Numune</label><input value="${r.numune||''}" placeholder=" " oninput="updateField('numune',this.value)"></div>
+        <div class="field"><label>Renk</label><input value="${r.renk||''}" placeholder=" " oninput="updateField('renk',this.value)"></div>
       </div>
       <div class="grid-2">
         <div class="field"><label>Ürün Tipi</label>
           <select oninput="updateField('tip',this.value);updateField('gramaj',getProductGramaj(this.value));renderForm()">${prodOpts}</select>
         </div>
-        <div class="field"><label>Renk</label><input value="${r.renk||''}" placeholder=" " oninput="updateField('renk',this.value)"></div>
+        <div class="field"><label>Numune</label><input value="${r.numune||''}" placeholder=" " oninput="updateField('numune.value)"></div>
       </div>
       <div class="grid-2">
         <div class="field"><label>Kesim Adeti</label><input type="number" value="${r.kesimAdeti||''}" placeholder=" " oninput="updateField('kesimAdeti',this.value)"></div>
